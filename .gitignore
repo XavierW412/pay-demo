@@ -18,6 +18,7 @@ target/
 *.tmp
 *.swp
 .cache/
+.worktrees/
 
 # 编辑器和操作系统文件
 .idea/
