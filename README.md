@@ -6,6 +6,7 @@
 
 - 当前处于产品与工程准备阶段，尚未创建前端、后端或部署代码。
 - 首期产品范围和责任边界见[产品说明](docs/product/product-spec.md)。
+- 运营后台交易列表字段建议见[交易列表页面需求](docs/product/transaction-list.md)。
 - 技术栈仍有推荐项待项目初始化时确认和锁定，见[技术栈清单](docs/engineering/technology-stack.md)。
 - 按阶段推进的路线见[开发路线图](docs/roadmap/development-roadmap.md)。
 

@@ -22,7 +22,8 @@ startrail-payment/
 ├── .gitignore
 └── docs/
     ├── product/
-    │   └── product-spec.md
+    │   ├── product-spec.md
+    │   └── transaction-list.md
     ├── architecture/
     │   └── README.md
     ├── engineering/
