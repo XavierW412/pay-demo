@@ -32,6 +32,8 @@
 
 此表是初始化时实际选定的基线；pnpm 锁文件保存前端传递依赖的精确解析结果。生产运行时和 Airwallex 账户能力仍需部署方及商户账户确认。
 
+2026-10-09 已将付款体验改为官方托管收银台，沿用已锁定的 `@airwallex/components-sdk` 1.35.2 调用 `payments.redirectToCheckout`，不再装载 Drop-in。SDK 和短期上下文继续使用，不升级依赖；未引入 Checkout Session 或支付工具商品/价格管理。
+
 | 范畴 | 推荐基线 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | 开发系统 | Windows + WSL Ubuntu，运行工具和项目均在 WSL 内 | 已确认 | 不用 Windows 原生 Node、Java、Python 或 Git |
@@ -49,7 +51,7 @@
 | 关系数据库 | PostgreSQL 18.x | 建议采用 | 适合交易、退款、审计及对账记录；需确认星辙生产云服务区域支持情况 |
 | 数据访问 | Spring Data JPA + Hibernate | 建议采用 | 聚合与常规持久化优先；复杂对账查询可用明确 SQL，不为抽象而抽象 |
 | 数据库迁移 | Flyway | 建议采用 | 所有结构变化通过有版本的迁移脚本，不在生产手工改表 |
-| 用户认证授权 | Spring Security + 服务端会话 Cookie | 建议采用 | HttpOnly、Secure、SameSite 等属性按部署域名配置；角色授权由后端执行 |
+| 用户认证授权 | Spring Security + 服务端会话 Cookie | 已采用初版 | BCrypt 密码摘要、CSRF、服务端角色授权；生产 Cookie 属性依部署域名配置 |
 | 服务端 API | Spring MVC REST/JSON | 建议采用 | 星辙协议、错误码和签名方式等候其正式接口资料 |
 | 服务商 API | 服务端 HTTP 客户端访问 Airwallex API | 建议采用 | 评估官方 SDK 后再决定；任何密钥只在服务端保存 |
 | 前端 API 客户端 | Axios 封装 | 建议采用 | 统一基础地址、认证凭证、错误转换、超时和请求标识 |

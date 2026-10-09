@@ -26,6 +26,12 @@ public class PaymentOrderEntity {
     @Column(nullable = false, length = 3)
     private String currency;
 
+    @Column(name = "shopper_country_code", length = 2)
+    private String shopperCountryCode;
+
+    @Column(name = "payment_provider", nullable = false, length = 32)
+    private String paymentProvider;
+
     @Column(nullable = false, length = 32)
     private String status;
 
@@ -51,13 +57,15 @@ public class PaymentOrderEntity {
     }
 
     public PaymentOrderEntity(UUID id, String businessOrderId, String requestId, BigDecimal amount, String currency,
-                              String status, String providerPaymentIntentId, String providerStatus, Instant createdAt,
-                              Instant updatedAt) {
+                              String shopperCountryCode, String paymentProvider, String status, String providerPaymentIntentId,
+                              String providerStatus, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.businessOrderId = businessOrderId;
         this.requestId = requestId;
         this.amount = amount;
         this.currency = currency;
+        this.shopperCountryCode = shopperCountryCode;
+        this.paymentProvider = paymentProvider;
         this.status = status;
         this.providerPaymentIntentId = providerPaymentIntentId;
         this.providerStatus = providerStatus;
@@ -83,6 +91,14 @@ public class PaymentOrderEntity {
 
     public String getCurrency() {
         return currency;
+    }
+
+    public String getShopperCountryCode() {
+        return shopperCountryCode;
+    }
+
+    public String getPaymentProvider() {
+        return paymentProvider;
     }
 
     public String getStatus() {

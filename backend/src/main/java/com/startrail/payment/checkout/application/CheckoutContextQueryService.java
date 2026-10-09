@@ -1,6 +1,7 @@
 package com.startrail.payment.checkout.application;
 
 import com.startrail.payment.checkout.interfaces.CheckoutContextResponse;
+import com.startrail.payment.checkout.config.TrustedCheckoutRedirectConfiguration;
 import com.startrail.payment.integrations.airwallex.config.AirwallexProperties;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentDetails;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentException;
@@ -14,16 +15,19 @@ public class CheckoutContextQueryService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final AirwallexPaymentIntentGateway paymentIntentGateway;
     private final AirwallexProperties airwallexProperties;
+    private final TrustedCheckoutRedirectConfiguration redirectConfiguration;
 
     public CheckoutContextQueryService(
             CheckoutTokenService checkoutTokenService,
             PaymentOrderRepository paymentOrderRepository,
             AirwallexPaymentIntentGateway paymentIntentGateway,
-            AirwallexProperties airwallexProperties) {
+            AirwallexProperties airwallexProperties,
+            TrustedCheckoutRedirectConfiguration redirectConfiguration) {
         this.checkoutTokenService = checkoutTokenService;
         this.paymentOrderRepository = paymentOrderRepository;
         this.paymentIntentGateway = paymentIntentGateway;
         this.airwallexProperties = airwallexProperties;
+        this.redirectConfiguration = redirectConfiguration;
     }
 
     public CheckoutContextResponse getContext(String opaqueToken) {
@@ -40,17 +44,12 @@ public class CheckoutContextQueryService {
         if (providerIntent.clientSecret() == null || providerIntent.clientSecret().isBlank()) {
             throw new AirwallexPaymentIntentException("Airwallex Payment Intent 缺少托管收银台上下文");
         }
-        if (airwallexProperties.checkoutCountryCode() == null
-                || !airwallexProperties.checkoutCountryCode().matches("[A-Z]{2}")) {
-            throw new com.startrail.payment.integrations.airwallex.auth.AirwallexConfigurationException(
-                    "请根据 Airwallex 商户账户配置 AIRWALLEX_CHECKOUT_COUNTRY_CODE");
-        }
-
         return CheckoutContextResponse.from(
                 paymentOrder,
                 providerIntent.clientSecret(),
-                airwallexProperties.checkoutCountryCode(),
-                airwallexProperties.environment());
+                paymentOrder.shopperCountryCode(),
+                airwallexProperties.environment(),
+                redirectConfiguration.businessOrderUrl(paymentOrder.businessOrderId()));
     }
 
     private void verifyProviderOrder(

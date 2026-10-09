@@ -7,7 +7,9 @@
     "db:down": "docker compose stop postgres",
     "dev:backend": "./backend/mvnw -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=local",
     "dev:web": "pnpm --filter frontend dev",
+    "dev:mock-xingzhe": "pnpm --filter mock-xingzhe dev",
     "build:web": "pnpm --filter frontend build",
+    "build:mock-xingzhe": "pnpm --filter mock-xingzhe build",
     "lint:web": "pnpm --filter frontend lint"
   }
 }

@@ -10,6 +10,8 @@ public record PaymentOrder(
         String requestId,
         BigDecimal amount,
         String currency,
+        String shopperCountryCode,
+        PaymentProvider provider,
         PaymentStatus status,
         String providerPaymentIntentId,
         String providerStatus,

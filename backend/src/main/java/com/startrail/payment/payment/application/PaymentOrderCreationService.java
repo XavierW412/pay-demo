@@ -3,9 +3,11 @@ package com.startrail.payment.payment.application;
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.startrail.payment.payment.domain.PaymentOrderConflictException;
 import com.startrail.payment.checkout.application.CheckoutTokenService;
+import com.startrail.payment.checkout.config.TrustedCheckoutRedirectConfiguration;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentGateway;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Objects;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -16,18 +18,21 @@ public class PaymentOrderCreationService implements CreatePaymentOrderUseCase {
     private final AirwallexPaymentIntentGateway paymentIntentGateway;
     private final CheckoutTokenService checkoutTokenService;
     private final PaymentOrderRepository repository;
+    private final TrustedCheckoutRedirectConfiguration redirectConfiguration;
 
     public PaymentOrderCreationService(
             PaymentOrderCreationTransaction creationTransaction,
             PaymentOrderProviderUpdateTransaction providerUpdateTransaction,
             AirwallexPaymentIntentGateway paymentIntentGateway,
             CheckoutTokenService checkoutTokenService,
-            PaymentOrderRepository repository) {
+            PaymentOrderRepository repository,
+            TrustedCheckoutRedirectConfiguration redirectConfiguration) {
         this.creationTransaction = creationTransaction;
         this.providerUpdateTransaction = providerUpdateTransaction;
         this.paymentIntentGateway = paymentIntentGateway;
         this.checkoutTokenService = checkoutTokenService;
         this.repository = repository;
+        this.redirectConfiguration = redirectConfiguration;
     }
 
     @Override
@@ -41,7 +46,10 @@ public class PaymentOrderCreationService implements CreatePaymentOrderUseCase {
                 var existingOrder = existing.get();
                 if (existingOrder.businessOrderId().equals(command.businessOrderId().trim())
                         && existingOrder.amount().compareTo(new BigDecimal(command.amount())) == 0
-                        && existingOrder.currency().equals(command.currency().trim().toUpperCase(Locale.ROOT))) {
+                        && existingOrder.currency().equals(command.currency().trim().toUpperCase(Locale.ROOT))
+                        && Objects.equals(
+                                existingOrder.shopperCountryCode(),
+                                normalizeShopperCountryCode(command.shopperCountryCode()))) {
                     paymentOrder = existingOrder;
                 } else {
                     throw new PaymentOrderConflictException("requestId 已被不同的支付请求使用");
@@ -52,11 +60,17 @@ public class PaymentOrderCreationService implements CreatePaymentOrderUseCase {
         }
 
         if (paymentOrder.providerPaymentIntentId() == null) {
-            var intent = paymentIntentGateway.create(paymentOrder);
+            var intent = paymentIntentGateway.create(
+                    paymentOrder,
+                    redirectConfiguration.businessOrderUrl(paymentOrder.businessOrderId()));
             paymentOrder = providerUpdateTransaction.attachIntent(paymentOrder.id(), intent.id(), intent.status());
         }
 
         var checkoutToken = checkoutTokenService.issue(paymentOrder.id());
-        return new CreatePaymentOrderResult(paymentOrder, "/checkout/" + checkoutToken);
+        return new CreatePaymentOrderResult(paymentOrder, redirectConfiguration.checkoutUrl(checkoutToken));
+    }
+
+    private String normalizeShopperCountryCode(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

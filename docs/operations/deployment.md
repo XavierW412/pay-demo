@@ -25,6 +25,7 @@
 4. 配置 HTTPS 证书，开放必要网站和 Webhook 流量，并限制运营后台访问范围。
 5. 如 Airwallex API 凭证启用 IP 限制，再确认服务器是否有稳定出口 IP，并登记到允许列表。
 6. 部署应用与数据库，配置生产地址、密钥、Webhook 地址和权限；密钥只进入服务端安全配置。
+   支付项目还需要星辙提供已确认的付款、退款指令和结果通知接口。当前提议契约的生产配置是 `STARTRAIL_INBOUND_SECRET`、`STARTRAIL_REFUND_INBOUND_SECRET`、`STARTRAIL_OUTBOUND_SECRET` 和 `STARTRAIL_PAYMENT_NOTIFICATION_URL`；通知地址必须使用 HTTPS。见[星辙对接契约](../architecture/integration/xingzhe-payment-contract.md)。
 7. 在 Airwallex 生产账户配置 Webhook 和所需事件，验证连通性、签名核验、状态查询、重试与异常记录。
 8. 确认生产账户币种和付款方式、监控与告警、数据备份恢复及回退负责人，再按双方安排开放真实交易。
 
@@ -48,4 +49,39 @@
 - [ ] 数据备份、恢复演练、生产监控和故障回退已安排。
 - [ ] 星辙负责生产资源、业务操作和开通服务；支付项目负责支付处理和技术留痕。
 
-具体云厂商购买、域名 DNS、证书签发和固定 IP 配置步骤，待星辙确定部署平台后再补充。
+## 6. Airwallex Webhook 地址配置
+
+### 沙盒本地联调
+
+本地服务接收地址为 `POST /api/v1/webhooks/airwallex`。Airwallex 无法访问开发机的 `localhost`，因此本地联调需要 HTTPS 隧道。无需购买域名或服务器；项目 README 记录了启动数据库、后端和 Cloudflare Quick Tunnel 的命令。生成临时 HTTPS 地址后，将其与接收路径拼接，填入 Airwallex Sandbox 账户的 Webhook 通知链接，例如：
+
+```text
+https://<临时隧道域名>/api/v1/webhooks/airwallex
+```
+
+隧道停止后地址失效，新的隧道可能产生不同域名；此时需更新沙盒 Webhook 订阅。临时隧道只用于开发，不得放入生产配置。
+
+### 生产环境
+
+1. 由星辙提供固定生产域名，配置 DNS 和有效 HTTPS 证书，并通过负载均衡器/反向代理将下列路径转发到支付后端：
+
+   ```text
+   https://<星辙正式域名>/api/v1/webhooks/airwallex
+   ```
+
+2. 使用星辙的 Airwallex **生产账户**创建 Webhook 订阅。选择对应的账户级“收单”事件，并将事件范围限制在当前已部署版本能够处理的 Payment Intent 状态事件；本项目未完成退款事件处理前，不要把退款 Webhook 当作已支持的生产能力。
+3. 锁定并记录 Webhook API 版本。创建订阅后，将该订阅对应的 Webhook 签名密钥写入生产密钥管理服务，并通过 `AIRWALLEX_WEBHOOK_SECRET` 注入支付后端。生产密钥不得进入代码仓库、镜像、前端或普通日志；沙盒和生产使用不同的订阅和密钥。
+4. 确认公网 HTTPS 回调可达，边界网络策略按 Airwallex 当前官方文档维护 Webhook 来源 IP 允许列表（若防火墙要求），并验证原始请求验签、事件 ID 去重、快速返回 HTTP 200、乱序/重复事件处理、状态查询核实及失败告警。
+5. 在真实交易开放前，确认生产 Payment Intent 创建、异步付款结果、星辙通知和故障负责人均完成双方联调。浏览器回跳不作为付款成功依据。
+
+API 调用密钥与 Webhook 签名密钥用途不同：API Key/Client ID 用于后端调用 Airwallex API；Webhook secret 用于验证 Airwallex 发来的通知。支付服务的接收路径由应用固定，域名和 HTTPS 由生产部署提供。
+
+具体云厂商购买、域名 DNS、证书签发和网络规则配置步骤，待星辙确定部署平台后再补充。
+
+## 托管入口和自动恢复的部署补充
+
+配置 `PAYMENT_CHECKOUT_PUBLIC_BASE_URL` 为支付项目公开前端的 HTTPS 根地址，配置 `STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE` 为星辙真实业务订单页，包含唯一 `{businessOrderId}` 占位符。配置只在服务端管理，不能接收用户任意返回网址；生产禁止本地模拟地址。Webhook 地址仍是公开后端域名加 `/api/v1/webhooks/airwallex`，它与浏览器付款返回地址不同。
+
+Flyway 公共迁移现包含 V110 补查游标；保留历史迁移和数据，不为整理目录删除已应用迁移。服务运行后自动发现有服务商编号的未决订单；默认补查间隔 60 秒，每批最多 10 笔，失败最多退避 15 分钟。监控应覆盖补查失败、通知积压、Webhook 失败、待核实订单和数据库容量，生产部署前仍需安排告警、备份恢复及真实付款退款验收。
+
+本地只有订单模拟器；生产不装配模拟接口，需星辙真实接口及订单页就位。上线配置切换之外，还要确认正式账户支付方式、CNY/USD可用能力、Webhook可达和密钥匹配；不能将“改密钥后可构建”当作上线验收。

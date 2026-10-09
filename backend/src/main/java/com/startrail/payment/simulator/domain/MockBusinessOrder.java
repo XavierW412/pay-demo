@@ -8,6 +8,7 @@ public record MockBusinessOrder(
         String businessOrderId,
         String requestId,
         String productCode,
+        MockPaymentMode paymentMode,
         String displayName,
         BigDecimal amount,
         String currency,

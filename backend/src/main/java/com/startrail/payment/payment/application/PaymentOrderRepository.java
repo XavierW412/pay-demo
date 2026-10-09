@@ -13,5 +13,7 @@ public interface PaymentOrderRepository {
 
     Optional<PaymentOrder> findById(UUID id);
 
+    Optional<PaymentOrder> findByIdForUpdate(UUID id);
+
     PaymentOrder save(PaymentOrder paymentOrder);
 }

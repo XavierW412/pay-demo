@@ -21,9 +21,9 @@ public class MockPaymentEventController {
 
     @PostMapping
     public ResponseEntity<Void> receive(
-            @RequestHeader("X-Local-Request-Timestamp") String timestamp,
-            @RequestHeader("X-Local-Request-Nonce") String nonce,
-            @RequestHeader("X-Local-Request-Signature") String signature,
+            @RequestHeader("X-Startrail-Timestamp") String timestamp,
+            @RequestHeader("X-Startrail-Nonce") String nonce,
+            @RequestHeader("X-Startrail-Signature") String signature,
             @RequestBody byte[] rawBody) {
         eventService.receive(timestamp, nonce, signature, rawBody);
         return ResponseEntity.ok().build();

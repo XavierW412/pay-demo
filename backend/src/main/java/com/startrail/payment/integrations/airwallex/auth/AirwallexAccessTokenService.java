@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Service
@@ -13,8 +14,12 @@ public class AirwallexAccessTokenService {
     private final AirwallexProperties properties;
     private CachedAccessToken cachedAccessToken;
 
-    public AirwallexAccessTokenService(RestClient.Builder restClientBuilder, AirwallexProperties properties) {
-        this.restClient = restClientBuilder.baseUrl(properties.baseUrl()).build();
+    public AirwallexAccessTokenService(
+            RestClient.Builder restClientBuilder,
+            AirwallexProperties properties,
+            ClientHttpRequestFactory airwallexRequestFactory) {
+        this.restClient = restClientBuilder.baseUrl(properties.baseUrl())
+                .requestFactory(airwallexRequestFactory).build();
         this.properties = properties;
     }
 

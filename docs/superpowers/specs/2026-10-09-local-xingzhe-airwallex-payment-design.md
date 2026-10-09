@@ -91,7 +91,8 @@ sequenceDiagram
   "requestId": "50d86ae3-0ccf-4c89-a26a-d5c81625be10",
   "businessOrderId": "XZ-DEV-20261009-000001",
   "amount": "128.00",
-  "currency": "CNY"
+  "currency": "CNY",
+  "shopperCountryCode": "CN"
 }
 ```
 
@@ -103,6 +104,7 @@ sequenceDiagram
 | `businessOrderId` | 字符串 | 模拟星辙生成的业务订单号；不得由支付服务覆盖。 |
 | `amount` | 十进制字符串 | 大于零，最多两位小数；不使用浮点数传金额。 |
 | `currency` | 字符串 | 首期仅接受 `CNY` 或 `USD`；是否能在生产使用取决于商户账户配置。 |
+| `shopperCountryCode` | 字符串，可选 | 本地模拟星辙提供的付款用户国家/地区代码；CNY/ CN 与 USD/ US 是模拟商品显式配置，不构成生产推断规则。缺省时收银台省略 `country_code`。 |
 
 支付方式不由本地模拟星辙在首期选择。当前只有 Airwallex 一个服务商，用户在 Airwallex 托管收银台看到该账户和币种实际可用的付款方式。以后接入多个服务商时，再扩展服务商选择和路由字段。
 
@@ -180,7 +182,7 @@ sequenceDiagram
 
 ### 5.3 Airwallex 托管收银台
 
-支付服务自己的 `/checkout/{opaqueToken}` 页面使用短期、不透明、不可猜测的付款令牌向服务端读取该笔付款的一次性上下文，再加载 Airwallex.js 并调用 `redirectToCheckout`。令牌仅关联单笔 Payment Intent，建议有效期 15 分钟，读取后不因页面刷新而生成新的 Payment Intent。官方参数包括 `intent_id`、`client_secret`、`currency`，并应明确提供适当的 `country_code`。Airwallex `client_secret` 是 SDK 必需的短期付款上下文，允许只在该付款页面临时交给浏览器；它不得写入 URL、浏览器持久存储或日志，也不得与 API Key、Client ID 或 Webhook secret 混淆。服务端密钥绝不进入浏览器。
+支付服务自己的 `/checkout/{opaqueToken}` 页面使用短期、不透明、不可猜测的付款令牌向服务端读取该笔付款的一次性上下文，再加载 Airwallex.js 并调用 `redirectToCheckout`。令牌仅关联单笔 Payment Intent，建议有效期 15 分钟，读取后不因页面刷新而生成新的 Payment Intent。官方参数包括 `intent_id`、`client_secret`、`currency`；星辙提供国家/地区时传入订单快照中的 `country_code`，未提供时省略该可选参数。Airwallex `client_secret` 是 SDK 必需的短期付款上下文，允许只在该付款页面临时交给浏览器；它不得写入 URL、浏览器持久存储或日志，也不得与 API Key、Client ID 或 Webhook secret 混淆。服务端密钥绝不进入浏览器。
 
 币种会影响托管收银台显示哪些支付方式；实际可用方式由星辙 Airwallex 账户、地区、币种和账户配置决定，不能因为文档列出某方式就承诺其生产可用。沙盒和生产分别选择官方环境配置。
 

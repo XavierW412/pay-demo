@@ -9,6 +9,16 @@ spring:
 startrail:
   simulator:
     enabled: false
+  integration:
+    inbound-secret: ${STARTRAIL_INBOUND_SECRET}
+    refund-inbound-secret: ${STARTRAIL_REFUND_INBOUND_SECRET}
+    outbound-secret: ${STARTRAIL_OUTBOUND_SECRET}
+    notification-url: ${STARTRAIL_PAYMENT_NOTIFICATION_URL}
+    business-order-url-template: ${STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE}
+
+payment:
+  checkout:
+    public-base-url: ${PAYMENT_CHECKOUT_PUBLIC_BASE_URL}
 
 airwallex:
   environment: prod
@@ -16,4 +26,18 @@ airwallex:
   client-id: ${AIRWALLEX_CLIENT_ID}
   api-key: ${AIRWALLEX_API_KEY}
   webhook-secret: ${AIRWALLEX_WEBHOOK_SECRET}
-  checkout-country-code: ${AIRWALLEX_CHECKOUT_COUNTRY_CODE}
+
+operations:
+  bootstrap:
+    owner-username: ${OPERATOR_OWNER_USERNAME}
+    owner-password: ${OPERATOR_OWNER_PASSWORD}
+    staff-username: ${OPERATOR_STAFF_USERNAME}
+    staff-password: ${OPERATOR_STAFF_PASSWORD}
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+        http-only: true
+        same-site: lax

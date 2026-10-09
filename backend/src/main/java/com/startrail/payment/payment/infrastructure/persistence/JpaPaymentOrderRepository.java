@@ -38,6 +38,11 @@ public class JpaPaymentOrderRepository implements PaymentOrderRepository {
     }
 
     @Override
+    public Optional<PaymentOrder> findByIdForUpdate(UUID id) {
+        return repository.findByIdForUpdate(id).map(PaymentOrderMapper::toDomain);
+    }
+
+    @Override
     public PaymentOrder save(PaymentOrder paymentOrder) {
         var entity = new PaymentOrderEntity(
                 paymentOrder.id(),
@@ -45,6 +50,8 @@ public class JpaPaymentOrderRepository implements PaymentOrderRepository {
                 paymentOrder.requestId(),
                 paymentOrder.amount(),
                 paymentOrder.currency(),
+                paymentOrder.shopperCountryCode(),
+                paymentOrder.provider().name(),
                 paymentOrder.status().name(),
                 paymentOrder.providerPaymentIntentId(),
                 paymentOrder.providerStatus(),

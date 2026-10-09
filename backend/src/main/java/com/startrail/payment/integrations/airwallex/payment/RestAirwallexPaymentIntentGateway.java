@@ -5,6 +5,7 @@ import com.startrail.payment.integrations.airwallex.config.AirwallexProperties;
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -16,13 +17,15 @@ public class RestAirwallexPaymentIntentGateway implements AirwallexPaymentIntent
     public RestAirwallexPaymentIntentGateway(
             RestClient.Builder restClientBuilder,
             AirwallexProperties properties,
-            AirwallexAccessTokenService accessTokenService) {
-        this.restClient = restClientBuilder.baseUrl(properties.baseUrl()).build();
+            AirwallexAccessTokenService accessTokenService,
+            ClientHttpRequestFactory airwallexRequestFactory) {
+        this.restClient = restClientBuilder.baseUrl(properties.baseUrl())
+                .requestFactory(airwallexRequestFactory).build();
         this.accessTokenService = accessTokenService;
     }
 
     @Override
-    public AirwallexPaymentIntent create(PaymentOrder paymentOrder) {
+    public AirwallexPaymentIntent create(PaymentOrder paymentOrder, String returnUrl) {
         var response = restClient.post()
                 .uri("/pa/payment_intents/create")
                 .headers(headers -> headers.setBearerAuth(accessTokenService.getAccessToken()))
@@ -30,7 +33,8 @@ public class RestAirwallexPaymentIntentGateway implements AirwallexPaymentIntent
                         paymentOrder.amount(),
                         paymentOrder.currency(),
                         paymentOrder.businessOrderId(),
-                        paymentOrder.requestId()))
+                        paymentOrder.requestId(),
+                        returnUrl))
                 .retrieve()
                 .body(PaymentIntentResponse.class);
         if (response == null || response.id() == null || response.status() == null) {
@@ -46,7 +50,7 @@ public class RestAirwallexPaymentIntentGateway implements AirwallexPaymentIntent
                 .headers(headers -> headers.setBearerAuth(accessTokenService.getAccessToken()))
                 .retrieve()
                 .body(AirwallexPaymentIntentDetails.class);
-        if (response == null || response.id() == null || response.clientSecret() == null) {
+        if (response == null || response.id() == null || response.status() == null) {
             throw new AirwallexPaymentIntentException("Airwallex Payment Intent 查询响应不完整");
         }
         return response;
@@ -56,7 +60,8 @@ public class RestAirwallexPaymentIntentGateway implements AirwallexPaymentIntent
             BigDecimal amount,
             String currency,
             @JsonProperty("merchant_order_id") String merchantOrderId,
-            @JsonProperty("request_id") String requestId) {
+            @JsonProperty("request_id") String requestId,
+            @JsonProperty("return_url") String returnUrl) {
     }
 
     private record PaymentIntentResponse(

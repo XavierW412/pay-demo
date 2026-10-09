@@ -1,4 +1,6 @@
 package com.startrail.payment.simulator.interfaces;
 
-public record CreateMockBusinessOrderRequest(String productCode) {
+import com.startrail.payment.simulator.domain.MockPaymentMode;
+
+public record CreateMockBusinessOrderRequest(String productCode, MockPaymentMode paymentMode) {
 }

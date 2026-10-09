@@ -11,6 +11,7 @@ import com.startrail.payment.payment.interfaces.InvalidRequestBodyException;
 import com.startrail.payment.simulator.application.MockBusinessOrderNotFoundException;
 import com.startrail.payment.simulator.application.MockProductNotFoundException;
 import com.startrail.payment.simulator.application.InvalidMockPaymentEventException;
+import com.startrail.payment.operations.application.InvalidOperatorRequestException;
 import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(InvalidOperatorRequestException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidOperatorRequest(InvalidOperatorRequestException exception) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_OPERATOR_REQUEST", exception.getMessage());
+    }
     @ExceptionHandler(InvalidMockPaymentEventException.class)
     public ResponseEntity<ApiErrorResponse> handleMockPaymentEvent(InvalidMockPaymentEventException exception) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_MOCK_PAYMENT_EVENT", exception.getMessage());

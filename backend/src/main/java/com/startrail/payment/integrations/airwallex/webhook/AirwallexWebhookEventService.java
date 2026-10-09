@@ -2,7 +2,7 @@ package com.startrail.payment.integrations.airwallex.webhook;
 
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentDetails;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentGateway;
-import com.startrail.payment.notification.PaymentStatusNotification;
+import com.startrail.payment.notification.PaymentStatusOutboxWriter;
 import com.startrail.payment.payment.application.PaymentOrderProviderUpdateTransaction;
 import com.startrail.payment.payment.application.PaymentOrderRepository;
 import java.time.Instant;
@@ -19,18 +19,21 @@ public class AirwallexWebhookEventService {
     private final AirwallexPaymentIntentGateway paymentIntentGateway;
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentOrderProviderUpdateTransaction updateTransaction;
+    private final PaymentStatusOutboxWriter outboxWriter;
 
     public AirwallexWebhookEventService(
             JdbcTemplate jdbcTemplate,
             ObjectMapper objectMapper,
             AirwallexPaymentIntentGateway paymentIntentGateway,
             PaymentOrderRepository paymentOrderRepository,
-            PaymentOrderProviderUpdateTransaction updateTransaction) {
+            PaymentOrderProviderUpdateTransaction updateTransaction,
+            PaymentStatusOutboxWriter outboxWriter) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.paymentIntentGateway = paymentIntentGateway;
         this.paymentOrderRepository = paymentOrderRepository;
         this.updateTransaction = updateTransaction;
+        this.outboxWriter = outboxWriter;
     }
 
     public void accept(byte[] rawBody) {
@@ -78,15 +81,9 @@ public class AirwallexWebhookEventService {
         var updated = updateTransaction.applyVerifiedProviderStatus(
                 paymentOrder.id(), current.id(), current.status(), current.amount(), current.currency(),
                 current.merchantOrderId());
-        var notification = PaymentStatusNotification.from(event.id(), event.name(), updated, Instant.now());
-        jdbcTemplate.update("""
-                INSERT INTO notification_outbox(
-                    event_id, event_type, payment_order_id, payload, delivery_status,
-                    attempt_count, next_attempt_at, created_at
-                ) VALUES (?, ?, ?, ?, 'PENDING', 0, ?, ?)
-                ON CONFLICT (event_id) DO NOTHING
-                """, event.id(), event.name(), updated.id(), writeJson(notification),
-                java.sql.Timestamp.from(Instant.now()), java.sql.Timestamp.from(Instant.now()));
+        if (updated.statusChanged()) {
+            outboxWriter.enqueue(event.id(), event.name(), updated.order());
+        }
         markProcessed(eventId);
     }
 

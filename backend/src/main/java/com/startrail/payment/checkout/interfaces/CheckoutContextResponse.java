@@ -10,12 +10,14 @@ public record CheckoutContextResponse(
         String amount,
         String currency,
         String countryCode,
-        String environment) {
+        String environment,
+        String businessReturnUrl) {
     public static CheckoutContextResponse from(
             PaymentOrder paymentOrder,
             String clientSecret,
             String countryCode,
-            String environment) {
+            String environment,
+            String businessReturnUrl) {
         return new CheckoutContextResponse(
                 paymentOrder.providerPaymentIntentId(),
                 clientSecret,
@@ -24,6 +26,7 @@ public record CheckoutContextResponse(
                 paymentOrder.amount().setScale(2).toPlainString(),
                 paymentOrder.currency(),
                 countryCode,
-                environment);
+                environment,
+                businessReturnUrl);
     }
 }

@@ -8,6 +8,5 @@ public record AirwallexProperties(
         String baseUrl,
         String clientId,
         String apiKey,
-        String webhookSecret,
-        String checkoutCountryCode) {
+        String webhookSecret) {
 }

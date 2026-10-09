@@ -4,8 +4,10 @@ import com.startrail.payment.payment.domain.InvalidPaymentOrderException;
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.startrail.payment.payment.domain.PaymentOrderConflictException;
 import com.startrail.payment.payment.domain.PaymentStatus;
+import com.startrail.payment.payment.domain.PaymentProvider;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +22,19 @@ public class PaymentOrderCreationTransaction {
 
     @Transactional
     public PaymentOrder create(CreatePaymentOrderCommand command) {
+        return create(command, PaymentProvider.AIRWALLEX, PaymentStatus.CREATING);
+    }
+
+    @Transactional
+    public PaymentOrder createLocalSimulation(CreatePaymentOrderCommand command) {
+        return create(command, PaymentProvider.LOCAL_SIMULATOR, PaymentStatus.AWAITING_PAYMENT);
+    }
+
+    private PaymentOrder create(CreatePaymentOrderCommand command, PaymentProvider provider, PaymentStatus initialStatus) {
         var normalized = normalize(command);
         var existing = repository.findByRequestId(normalized.requestId());
         if (existing.isPresent()) {
-            return returnIfSameRequest(existing.get(), normalized);
+            return returnIfSameRequest(existing.get(), normalized, provider);
         }
 
         if (repository.findByBusinessOrderId(normalized.businessOrderId()).isPresent()) {
@@ -37,7 +48,9 @@ public class PaymentOrderCreationTransaction {
                 normalized.requestId(),
                 normalized.amount(),
                 normalized.currency(),
-                PaymentStatus.CREATING,
+                normalized.shopperCountryCode(),
+                provider,
+                initialStatus,
                 null,
                 null,
                 now,
@@ -45,10 +58,13 @@ public class PaymentOrderCreationTransaction {
         return repository.save(paymentOrder);
     }
 
-    private PaymentOrder returnIfSameRequest(PaymentOrder existing, NormalizedRequest request) {
+    private PaymentOrder returnIfSameRequest(
+            PaymentOrder existing, NormalizedRequest request, PaymentProvider provider) {
         if (existing.businessOrderId().equals(request.businessOrderId())
                 && existing.amount().compareTo(request.amount()) == 0
-                && existing.currency().equals(request.currency())) {
+                && existing.currency().equals(request.currency())
+                && Objects.equals(existing.shopperCountryCode(), request.shopperCountryCode())
+                && existing.provider() == provider) {
             return existing;
         }
         throw new PaymentOrderConflictException("requestId 已被不同的支付请求使用");
@@ -70,7 +86,19 @@ public class PaymentOrderCreationTransaction {
             throw new InvalidPaymentOrderException("金额必须大于零");
         }
 
-        return new NormalizedRequest(requestId, businessOrderId, amount, currency);
+        return new NormalizedRequest(
+                requestId, businessOrderId, amount, currency, normalizeShopperCountryCode(command.shopperCountryCode()));
+    }
+
+    private String normalizeShopperCountryCode(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        var countryCode = value.trim();
+        if (!countryCode.matches("[A-Z]{2}")) {
+            throw new InvalidPaymentOrderException("shopperCountryCode 必须为两个大写英文字母");
+        }
+        return countryCode;
     }
 
     private String requireIdentifier(String value, String fieldName, int maxLength) {
@@ -80,6 +108,11 @@ public class PaymentOrderCreationTransaction {
         return value.trim();
     }
 
-    private record NormalizedRequest(String requestId, String businessOrderId, BigDecimal amount, String currency) {
+    private record NormalizedRequest(
+            String requestId,
+            String businessOrderId,
+            BigDecimal amount,
+            String currency,
+            String shopperCountryCode) {
     }
 }

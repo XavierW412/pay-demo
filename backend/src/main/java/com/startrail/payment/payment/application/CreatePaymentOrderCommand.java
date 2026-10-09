@@ -4,5 +4,6 @@ public record CreatePaymentOrderCommand(
         String requestId,
         String businessOrderId,
         String amount,
-        String currency) {
+        String currency,
+        String shopperCountryCode) {
 }

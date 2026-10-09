@@ -2,6 +2,7 @@ package com.startrail.payment.payment.application;
 
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.startrail.payment.payment.domain.PaymentStatus;
+import com.startrail.payment.payment.domain.PaymentProvider;
 import com.startrail.payment.payment.infrastructure.persistence.PaymentOrderEntity;
 
 public final class PaymentOrderMapper {
@@ -15,6 +16,8 @@ public final class PaymentOrderMapper {
                 entity.getRequestId(),
                 entity.getAmount(),
                 entity.getCurrency(),
+                entity.getShopperCountryCode(),
+                PaymentProvider.valueOf(entity.getPaymentProvider()),
                 PaymentStatus.valueOf(entity.getStatus()),
                 entity.getProviderPaymentIntentId(),
                 entity.getProviderStatus(),

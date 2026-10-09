@@ -1,6 +1,6 @@
 spring:
   config:
-    import: optional:file:.env[.properties]
+    import: optional:file:../.env[.properties],optional:file:.env[.properties]
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/startrail_payment}
     username: ${DB_USERNAME:startrail}
@@ -13,7 +13,14 @@ startrail:
     enabled: true
   integration:
     inbound-secret: ${STARTRAIL_LOCAL_INBOUND_SECRET:local-only-change-me}
+    refund-inbound-secret: ${STARTRAIL_LOCAL_REFUND_INBOUND_SECRET:local-only-refund-change-me}
     outbound-secret: ${STARTRAIL_LOCAL_OUTBOUND_SECRET:local-only-change-me}
+    notification-url: http://127.0.0.1:8080/mock-xingzhe/api/v1/payment-events
+    business-order-url-template: ${STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE:http://localhost:5175/mock-xingzhe/order/{businessOrderId}}
+
+payment:
+  checkout:
+    public-base-url: ${PAYMENT_CHECKOUT_PUBLIC_BASE_URL:http://localhost:5173}
 
 airwallex:
   environment: sandbox
@@ -21,7 +28,13 @@ airwallex:
   client-id: ${AIRWALLEX_CLIENT_ID:}
   api-key: ${AIRWALLEX_API_KEY:}
   webhook-secret: ${AIRWALLEX_WEBHOOK_SECRET:}
-  checkout-country-code: ${AIRWALLEX_CHECKOUT_COUNTRY_CODE:}
+
+operations:
+  bootstrap:
+    owner-username: ${OPERATOR_OWNER_USERNAME:owner}
+    owner-password: ${OPERATOR_OWNER_PASSWORD:}
+    staff-username: ${OPERATOR_STAFF_USERNAME:xingzhe-admin}
+    staff-password: ${OPERATOR_STAFF_PASSWORD:}
 
 server:
   address: 127.0.0.1

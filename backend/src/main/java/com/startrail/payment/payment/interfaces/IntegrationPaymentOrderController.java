@@ -1,11 +1,11 @@
 package com.startrail.payment.payment.interfaces;
 
-import com.startrail.payment.integrations.startrail.LocalRequestSignatureVerifier;
+import com.startrail.payment.integrations.startrail.IntegrationSignatureVerifier;
 import com.startrail.payment.payment.application.CreatePaymentOrderCommand;
 import com.startrail.payment.payment.application.CreatePaymentOrderUseCase;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,29 +15,31 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("local")
 @RequestMapping("/api/v1/integration/payment-orders")
 public class IntegrationPaymentOrderController {
     private final CreatePaymentOrderUseCase createPaymentOrder;
-    private final LocalRequestSignatureVerifier signatureVerifier;
+    private final IntegrationSignatureVerifier signatureVerifier;
     private final ObjectMapper objectMapper;
+    private final String inboundSecret;
 
     public IntegrationPaymentOrderController(
             CreatePaymentOrderUseCase createPaymentOrder,
-            LocalRequestSignatureVerifier signatureVerifier,
-            ObjectMapper objectMapper) {
+            IntegrationSignatureVerifier signatureVerifier,
+            ObjectMapper objectMapper,
+            @Value("${startrail.integration.inbound-secret}") String inboundSecret) {
         this.createPaymentOrder = createPaymentOrder;
         this.signatureVerifier = signatureVerifier;
         this.objectMapper = objectMapper;
+        this.inboundSecret = inboundSecret;
     }
 
     @PostMapping
     public ResponseEntity<CreatePaymentOrderResponse> create(
-            @RequestHeader(value = "X-Local-Request-Timestamp", required = false) String timestamp,
-            @RequestHeader(value = "X-Local-Request-Nonce", required = false) String nonce,
-            @RequestHeader(value = "X-Local-Request-Signature", required = false) String signature,
+            @RequestHeader(value = "X-Startrail-Timestamp", required = false) String timestamp,
+            @RequestHeader(value = "X-Startrail-Nonce", required = false) String nonce,
+            @RequestHeader(value = "X-Startrail-Signature", required = false) String signature,
             @RequestBody String rawBody) {
-        signatureVerifier.verify(timestamp, nonce, signature, rawBody);
+        signatureVerifier.verify(timestamp, nonce, signature, rawBody, inboundSecret);
 
         final CreatePaymentOrderRequest request;
         try {
@@ -50,7 +52,8 @@ public class IntegrationPaymentOrderController {
                 request.requestId(),
                 request.businessOrderId(),
                 request.amount(),
-                request.currency()));
+                request.currency(),
+                request.shopperCountryCode()));
         var paymentOrder = result.paymentOrder();
         return ResponseEntity.status(HttpStatus.CREATED).body(new CreatePaymentOrderResponse(
                 paymentOrder.id().toString(),

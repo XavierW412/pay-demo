@@ -13,7 +13,6 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:8080',
-      '/mock-xingzhe/api': 'http://localhost:8080',
     },
   },
 })

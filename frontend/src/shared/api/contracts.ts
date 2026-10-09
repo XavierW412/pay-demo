@@ -18,30 +18,16 @@ export interface CheckoutContext {
   paymentOrderId: string
   amount: string
   currency: Currency
-  countryCode: string
+  countryCode?: string | null
   environment: PaymentEnvironment
+  businessReturnUrl: string
 }
 
-export interface MockProduct {
-  productCode: string
-  displayName: string
-  amount: string
-  currency: Currency
-  description: string
-}
-
-export interface MockBusinessOrder {
+export interface CheckoutStatus {
   businessOrderId: string
   paymentOrderId: string
-  amount: string
-  currency: Currency
   paymentStatus: PaymentStatus
-  checkoutUrl: string
-}
-
-export interface MockBusinessOrderStatus {
-  businessOrderId: string
-  businessStatus: 'PENDING_PAYMENT' | 'PAID'
-  paymentStatus: PaymentStatus
-  serviceStatus: 'NOT_ACTIVATED' | 'ACTIVE'
+  notificationStatus: 'NOT_REQUIRED' | 'PENDING' | 'RETRY' | 'DELIVERED'
+  environment: PaymentEnvironment
+  businessReturnUrl: string
 }
