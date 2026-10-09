@@ -23,7 +23,8 @@ startrail-payment/
 └── docs/
     ├── product/
     │   ├── product-spec.md
-    │   └── transaction-list.md
+    │   ├── transaction-list.md
+    │   └── transaction-detail.md
     ├── architecture/
     │   └── README.md
     ├── engineering/

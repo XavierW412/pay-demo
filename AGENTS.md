@@ -11,7 +11,7 @@
 每次开始产品或代码任务，按任务范围阅读相关文档：
 
 1. 先读 [`docs/product/product-spec.md`](docs/product/product-spec.md)，确认产品边界和业务责任。
-2. 若涉及运营后台交易列表，继续读 [`docs/product/transaction-list.md`](docs/product/transaction-list.md)，其中“建议”和“待确认”内容不得当作正式接口字段。
+2. 若涉及交易列表或详情页，继续读 [`docs/product/transaction-list.md`](docs/product/transaction-list.md) 和 [`docs/product/transaction-detail.md`](docs/product/transaction-detail.md)；其中“建议”和“待确认”内容不得当作正式接口字段。
 3. 再读 [`docs/engineering/technology-stack.md`](docs/engineering/technology-stack.md)，确认技术选型状态。**“建议”或“待确认”不等于已批准，不要自行改成确定选择。**
 4. 读 [`docs/engineering/code-style.md`](docs/engineering/code-style.md) 和对应语言规范。
 5. 读 [`docs/engineering/directory-structure.md`](docs/engineering/directory-structure.md)，按既有模块边界放置代码。
