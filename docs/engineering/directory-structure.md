@@ -27,6 +27,8 @@ startrail-payment/
     │   └── transaction-detail.md
     ├── architecture/
     │   └── README.md
+    ├── superpowers/
+    │   └── specs/                    # 跨模块架构设计与设计评审记录
     ├── engineering/
     │   ├── code-style.md
     │   ├── ai-collaboration.md
