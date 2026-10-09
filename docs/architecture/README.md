@@ -6,7 +6,7 @@
 
 本目录只维护已经讨论并准备实现、或已在实现中验证的架构设计。没有真实内容的模块不建立空文件。
 
-当前已形成、等待用户审阅的首个链路设计：[本地星辙模拟与 Airwallex 支付链路](../superpowers/specs/2026-10-09-local-xingzhe-airwallex-payment-design.md)。其中星辙契约仅用于本地模拟，不能作为生产接口。
+当前的支付链路实现记录：[Airwallex 支付创建、结果核实与星辙通知](./payment/payment-flow.md)。设计基线见[本地星辙模拟与 Airwallex 支付链路](../superpowers/specs/2026-10-09-local-xingzhe-airwallex-payment-design.md)。其中星辙契约仅用于本地模拟，不能作为生产接口。
 
 ## 2. 什么时候新增架构设计
 

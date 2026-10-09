@@ -1,35 +1,56 @@
-# 星辙独立支付项目
+# 星辙独立支付服务
 
-这是一个为星辙提供支付通道接入、支付结果通知、退款指令执行、运营留痕和对账支持的独立工具。星辙继续负责业务订单、退款审批和服务开通；本项目不接管这些业务。
+本项目是星辙平台与 Airwallex 之间的支付通道工具。星辙仍负责业务订单、服务开通和退款决策；本项目负责创建支付请求、核实支付结果、通知星辙并保留支付处理记录。
 
-## 当前状态
+## 当前开发范围
 
-- 当前处于产品与工程准备阶段，尚未创建前端、后端或部署代码。
-- 首期产品范围和责任边界见[产品说明](docs/product/product-spec.md)。
-- 运营后台交易列表字段建议见[交易列表页面需求](docs/product/transaction-list.md)。
-- 交易详情页字段与操作边界见[交易详情页面需求](docs/product/transaction-detail.md)。
-- 技术栈仍有推荐项待项目初始化时确认和锁定，见[技术栈清单](docs/engineering/technology-stack.md)。
-- 按阶段推进的路线见[开发路线图](docs/roadmap/development-roadmap.md)。
+- 本地模拟星辙购买流程，契约仅用于开发联调，不代表星辙真实接口。
+- Airwallex 沙盒 Payment Intent 与托管收银台跳转。
+- 服务端支付状态核实、Webhook 处理与模拟通知。
+- 首期金额币种为 CNY、USD；支付方式由 Airwallex 商户账户实际启用能力决定。
+- 本地运行依赖 PostgreSQL；所有 Airwallex 凭据只从本地环境变量读取。
 
-## 从哪里开始
-
-1. AI 协作和文档阅读规则：[AGENTS.md](AGENTS.md)
-2. 产品做什么：[产品说明](docs/product/product-spec.md)
-3. 技术选择与状态：[技术栈清单](docs/engineering/technology-stack.md)
-4. 代码与目录约定：[代码风格](docs/engineering/code-style.md)、[工程目录](docs/engineering/directory-structure.md)
-5. 前端实现与视觉：[React/TypeScript 规范](docs/engineering/frontend/react-typescript.md)、[视觉原则](docs/engineering/frontend/design-principles.md)、[视觉规范](docs/engineering/frontend/visual-style.md)
-6. 按功能补充的架构设计：[架构文档索引](docs/architecture/README.md)
-7. 开发顺序：[开发路线图](docs/roadmap/development-roadmap.md)
-
-## 重要边界
-
-- 本项目首期只接入星辙持有的 Airwallex 商户账户；正式接口和账户能力需以星辙与 Airwallex 实际资料为准。
-- 开发联调用本地星辙模拟系统和 Airwallex 沙盒。交付给星辙的运营后台不提供测试付款、模拟交易或测试管理功能。
-- 所有金额、币种、支付状态和外部接口字段都必须来自已确认的产品规则或正式契约，不从原型图推断。
-- Figma 原型使用的虚构值须明确标为“原型示例数据（非真实交易）”，不得把示例字段变成产品需求。
+业务边界和进度见[产品说明](docs/product/product-spec.md)、[架构索引](docs/architecture/README.md)和[开发路线图](docs/roadmap/development-roadmap.md)。
 
 ## 开发环境
 
-项目工具在 WSL Ubuntu 中运行。Node.js 通过 fnm 管理，前端包管理使用 pnpm；Java 版本通过 SDKMAN 管理。具体版本以技术栈清单和最终项目配置为准。
+请在 WSL Ubuntu 中运行项目。使用 `.node-version` 指定的 Node.js、pnpm 12.5.1、SDKMAN 管理的 Java 21，以及 Docker Compose。
 
-当前仓库还没有可运行程序，因此暂时没有启动命令。初始化代码后，在此补充安装、启动、构建和内部工程验证命令。
+复制环境变量模板并填入自己的 Airwallex 沙盒凭据：
+
+```bash
+cp .env.example .env
+```
+
+启动本地数据库：
+
+```bash
+pnpm db:up
+```
+
+在两个 WSL 终端分别运行后端和前端：
+
+```bash
+pnpm dev:backend
+```
+
+```bash
+pnpm dev:web
+```
+
+前端地址为 `http://localhost:5173`，后端健康状态为 `http://localhost:8080/actuator/health`。前端开发服务器会代理 `/api` 和 `/mock-xingzhe` 到后端。
+
+## 工程检查
+
+```bash
+pnpm build:web
+pnpm lint:web
+./backend/mvnw -f backend/pom.xml -DskipTests package
+```
+
+## 重要边界
+
+- 沙盒进度不代表生产账户、生产星辙接口或生产付款方式已验收。
+- 浏览器返回页面不能直接把支付标记为成功；必须由服务端核实 Airwallex 状态后通知星辙。
+- 本地模拟器仅允许在 `local` 配置下启用；生产环境不得启用模拟 API。
+- 真实星辙协议、商户账户地区、支付方式和正式环境配置仍待星辙及 Airwallex 确认。

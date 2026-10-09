@@ -8,7 +8,7 @@
 
 ## 2. 当前仓库状态
 
-当前处于产品和工程准备阶段，已有产品说明、技术栈清单、代码规范和目录约定；尚无前端、后端或部署代码。下方“初期形态”和“完整形态”是逐步演进目标，不要求一次性创建空目录或占位代码。
+当前已经实现首期本地模拟星辙与 Airwallex 沙盒纵向链路的初版。仓库已有 React/Vite 前端、Spring Boot 后端、PostgreSQL Compose 配置、支付/付款上下文/通知模块和模拟星辙接口；运营账号、退款、对账等业务模块仍按路线图逐步实现。后续目录以实际模块边界为准，避免提前创建空目录和占位代码。
 
 ## 3. 初期形态
 
@@ -47,9 +47,9 @@ startrail-payment/
         └── development-roadmap.md
 ```
 
-## 4. 开发后的目标形态
+## 4. 当前实现与后续目标形态
 
-下方前端目录按当前推荐的 React + TypeScript + Tailwind + shadcn/ui 方案规划；技术栈最终确认前，它是目标建议，不代表已经创建前端代码。
+下方目录按当前实现和后续业务模块规划；技术栈及依赖版本以技术栈文档和锁文件为准。
 
 ```text
 startrail-payment/
@@ -68,7 +68,9 @@ startrail-payment/
 │       ├── main.tsx
 │       ├── app/                      # 路由、应用装配、全局布局和插件
 │       ├── components/ui/            # shadcn/ui 源码组件，按实际使用逐步加入
-│       ├── modules/                  # 按运营业务模块组织
+│       ├── modules/                  # 按业务模块组织
+│       │   ├── mock-xingzhe/         # 仅本地开发的模拟购买页
+│       │   ├── checkout/             # Airwallex 托管收银台引导和付款回跳
 │       │   ├── transactions/
 │       │   ├── exceptions/
 │       │   ├── refunds/
@@ -80,7 +82,7 @@ startrail-payment/
 │       ├── assets/
 │       └── styles/                   # Tailwind 主入口、CSS 变量和项目主题令牌
 ├── backend/                          # Java/Spring Boot 模块化单体
-│   ├── pom.xml                       # 若最终选 Maven；以技术栈清单为准
+│   ├── pom.xml                       # Maven 构建配置
 │   ├── mvnw
 │   ├── .mvn/wrapper/
 │   └── src/
@@ -98,10 +100,11 @@ startrail-payment/
 │       │   │   └── shared/            # 仅放稳定的跨模块基础能力
 │       │   └── resources/
 │       │       ├── application.yml
-│       │       └── db/migration/
+│       │       ├── application-local.yml
+│       │       ├── application-production.yml
+│       │       ├── db/migration/          # 全环境数据库结构
+│       │       └── db/migration-local/    # 仅本地模拟数据库结构
 │       └── test/
-├── tools/
-│   └── mock-starpath/                # 仅用于本地联调的星辙模拟器
 ├── deploy/                           # 只有实际采用后才建立部署脚本
 ├── docs/
 │   ├── product/

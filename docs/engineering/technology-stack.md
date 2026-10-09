@@ -13,6 +13,25 @@
 
 ## 2. 首期工程基线
 
+### 初始化后锁定的版本
+
+| 范畴 | 当前锁定版本 | 固定位置 |
+| --- | --- | --- |
+| Node.js | 24.21.0 | 根目录 `.node-version` |
+| pnpm | 12.5.1 | 根 `package.json` 的 `packageManager` |
+| React / React DOM | 19.3.0 | `frontend/package.json` 与根 `pnpm-lock.yaml` |
+| TypeScript | 6.0.3 | `frontend/package.json` 与根 `pnpm-lock.yaml` |
+| Vite | 8.3.3 | `frontend/package.json` 与根 `pnpm-lock.yaml` |
+| Tailwind CSS | 4.3.3 | `frontend/package.json` 与根 `pnpm-lock.yaml` |
+| shadcn/ui | Base UI，`base-nova` 预设 | `frontend/components.json`；组件源码由本项目维护 |
+| Airwallex Components SDK | 1.35.2 | `frontend/package.json` 与根 `pnpm-lock.yaml` |
+| Java | 21 | `backend/pom.xml` 的 `java.version` |
+| Spring Boot | 4.1.1 | `backend/pom.xml` |
+| Maven Wrapper | 3.9.16 | `backend/.mvn/wrapper/maven-wrapper.properties` |
+| PostgreSQL | 18 Alpine | 根目录 `compose.yaml` |
+
+此表是初始化时实际选定的基线；pnpm 锁文件保存前端传递依赖的精确解析结果。生产运行时和 Airwallex 账户能力仍需部署方及商户账户确认。
+
 | 范畴 | 推荐基线 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | 开发系统 | Windows + WSL Ubuntu，运行工具和项目均在 WSL 内 | 已确认 | 不用 Windows 原生 Node、Java、Python 或 Git |

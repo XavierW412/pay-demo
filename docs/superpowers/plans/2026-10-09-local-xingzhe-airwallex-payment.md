@@ -52,7 +52,7 @@
 | `README.md` | WSL 本地启动、沙盒配置和手动验收路径。 |
 | `docs/architecture/README.md` | 入口链接及实现后的实际状态/恢复说明。 |
 
-## 任务 1：建立前后端骨架和本地配置
+## Task 1: 建立前后端骨架和本地配置
 
 **执行者：主代理**
 
@@ -75,7 +75,7 @@
 
 **交付：** WSL 内可分别启动前端、后端和本地数据库；浏览器可打开前端骨架，后端健康端点返回正常。
 
-## 任务 2：实现支付单模型、状态和幂等持久化
+## Task 2: 实现支付单模型、状态和幂等持久化
 
 **执行者：主代理**
 
@@ -104,7 +104,7 @@
 
 **交付：** 只有数据库持久化成功、幂等约束生效后，接口才响应已创建支付单。
 
-## 任务 3：接入 Airwallex 沙盒 Payment Intent 与付款上下文
+## Task 3: 接入 Airwallex 沙盒 Payment Intent 与付款上下文
 
 **执行者：主代理**
 
@@ -132,7 +132,7 @@
 
 **交付：** 创建支付 API 返回支付项目的 `checkoutUrl`，不会把 Airwallex `client_secret` 返回给模拟星辙。
 
-## 任务 4：本地模拟星辙购买和业务订单界面
+## Task 4: 本地模拟星辙购买和业务订单界面
 
 **执行者：子代理甲（界面）；主代理提供接口类型并审查**
 
@@ -155,7 +155,7 @@
 
 **交付：** 模拟星辙用户能从示例服务进入自己的订单状态页；组件不含真实业务商品或生产测试入口。
 
-## 任务 5：付款引导页和 Airwallex 托管跳转界面
+## Task 5: 付款引导页和 Airwallex 托管跳转界面
 
 **执行者：子代理乙（界面）；主代理提供付款上下文接口并审查**
 
@@ -175,7 +175,7 @@
 
 **交付：** 用户从模拟星辙订单进入支付服务，再跳转到 Airwallex 托管付款页；付款资料不经过本项目前端表单。
 
-## 任务 6：Airwallex Webhook、可靠通知与模拟业务开通
+## Task 6: Airwallex Webhook、可靠通知与模拟业务开通
 
 **执行者：主代理**
 
@@ -184,7 +184,7 @@
 - 新建 `backend/src/main/java/com/startrail/payment/integrations/airwallex/webhook/`。
 - 新建 `backend/src/main/java/com/startrail/payment/notification/`。
 - 新建 `backend/src/main/java/com/startrail/payment/simulator/`。
-- 新建 `backend/src/main/resources/db/migration/V2__create_provider_events_and_outbox.sql`。
+- 新建公共迁移 `V4`、`V102`—`V103`，以及 local 专属迁移 `V100`、`V101`；所有版本使用单调递增的全局序号。
 - 修改支付状态模型、Airwallex 状态映射和本地配置。
 
 **接口：**
@@ -194,17 +194,17 @@
 - 模拟星辙用户 API：`GET /mock-xingzhe/api/v1/products`、`POST /mock-xingzhe/api/v1/orders`、`GET /mock-xingzhe/api/v1/orders/{businessOrderId}`。
 - 通知载荷：`eventId`、`eventType`、`businessOrderId`、`paymentOrderId`、`status`、`amount`、`currency`、`occurredAt`。
 
-- [ ] 在解析 JSON 前，按 Airwallex 官方协议用原始请求体和签名头验签；拒绝无效签名且不产生业务副作用。
-- [ ] 对 Airwallex 事件 `id` 建唯一约束；先持久化事件与待发送 outbox，再快速返回 HTTP 200。
-- [ ] 后台处理时读取必要的 Payment Intent 当前状态；只按服务端核实状态更新，未知或冲突状态进入待核查。
-- [ ] 以退避策略重试模拟星辙通知；按 `eventId` 去重；只有已核实 `SUCCEEDED` 事件能使模拟业务订单已付款和服务已开通。
-- [ ] 仅在 local profile 下装配模拟商品目录和模拟订单控制器；`V2` 迁移为模拟业务订单、Airwallex 事件和通知 outbox 建立唯一索引与关联键。
-- [ ] 对生产配置使用条件装配，启动时验证模拟 API 已关闭；生产配置若启用模拟器则立即失败。
-- [ ] 运行前后端构建；以沙盒付款手动走通通知成功路径，并检查重复事件、无效签名、通知暂时失败和浏览器先返回的行为。
+- [x] 在解析 JSON 前，按 Airwallex 官方协议用原始请求体和签名头验签；拒绝无效签名且不产生业务副作用。
+- [x] 对 Airwallex 事件 `id` 建唯一约束；先持久化事件，再快速返回 HTTP 200，后台处理并创建待发送 outbox。
+- [x] 后台处理时读取 Payment Intent 当前状态，核对 ID/金额/币种/业务订单号；未知或冲突状态不触发业务成功。
+- [x] 以退避策略重试模拟星辙通知；按 `eventId` 去重；只有已核实 `SUCCEEDED` 事件能使模拟业务订单已付款和服务已开通。
+- [x] 模拟接口只在 local profile 装配；production profile 有模拟器禁用检查；模拟表结构只在 local migration 中建立。
+- [x] Java 干净打包成功；数据库迁移已应用；健康和模拟商品接口返回 200；无效 Webhook 签名返回 401；有效事件重复投递只保存一个并进入 `PROCESSED`。
+- [ ] 使用真实 Airwallex 沙盒凭据手动走通 Payment Intent、托管收银台、成功 Webhook 和模拟服务开通；凭据及 Webhook 配置待准备。
 
-**交付：** 支付成功与星辙业务开通由可靠的服务端事件链连接；Webhook 重复/失败可恢复且可追溯。
+**交付：** 本地服务端事件链和可靠通知机制已实现；真实沙盒付款与开通仍待 Airwallex 沙盒凭据验证。
 
-## 任务 7：本地启动说明与端到端手动验收
+## Task 7: 本地启动说明与端到端手动验收
 
 **执行者：主代理**
 

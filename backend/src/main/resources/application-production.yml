@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+
+startrail:
+  simulator:
+    enabled: false
+
+airwallex:
+  environment: prod
+  base-url: https://api.airwallex.com/api/v1
+  client-id: ${AIRWALLEX_CLIENT_ID}
+  api-key: ${AIRWALLEX_API_KEY}
+  webhook-secret: ${AIRWALLEX_WEBHOOK_SECRET}
+  checkout-country-code: ${AIRWALLEX_CHECKOUT_COUNTRY_CODE}

@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # 前端依赖与构建产物
 node_modules/
@@ -19,6 +20,7 @@ target/
 *.swp
 .cache/
 .worktrees/
+.superpowers/sdd/
 
 # 编辑器和操作系统文件
 .idea/
