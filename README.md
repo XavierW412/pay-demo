@@ -57,7 +57,7 @@ pnpm dev:mock-xingzhe
 
 支付后台地址为 `http://localhost:5173`，本地模拟星辙地址为 `http://localhost:5175/mock-xingzhe`，后端业务端口为 `8080`，管理健康检查在本机回环地址 `http://localhost:8081/actuator/health`。支付后台只代理 `/api`；模拟器单独代理 `/mock-xingzhe/api`。生产只构建和部署支付后台，不部署模拟器。
 
-需要在本机查看技术诊断、追踪或监控配置时，见[可观测性与技术诊断](docs/architecture/operations/observability-diagnostics.md)及[本地观测栈开发验证](docs/operations/deployment.md#本地观测栈开发验证)。该独立栈尚未完成运行验收，支付数据库卷不属于监控栈清理范围。
+需要在本机查看支付服务请求日志、追踪或监控配置时，见[支付服务运行监控](docs/architecture/operations/payment-observability.md)及[本地观测栈开发验证](docs/operations/deployment.md#本地观测栈开发验证)。该独立栈尚未完成运行验收，支付数据库卷不属于监控栈清理范围。
 
 运营后台入口为 `http://localhost:5173/operations`。首次启动时，后端会从根目录 `.env` 的 `OPERATOR_OWNER_USERNAME`、`OPERATOR_OWNER_PASSWORD` 创建只读所有者账号，并从 `OPERATOR_STAFF_USERNAME`、`OPERATOR_STAFF_PASSWORD` 创建首位星辙员工管理员账号。请在本机查看自己的 `.env` 获取登录信息，不要将密码发到聊天或提交到仓库。初始账号创建后，修改 `.env` 不会覆盖数据库中已有密码。员工管理员可以生成一次性员工邀请，也可以生成仅在本地 Airwallex 沙盒使用、固定 6 小时有效的甲方临时测试账号。临时账号密码仅显示一次；退款确认会真实调用当前沙盒，交付凭证时请使用可信渠道。详细权限和安全规则见[运营后台架构](docs/architecture/operations/operations-console.md#认证与权限)。
 

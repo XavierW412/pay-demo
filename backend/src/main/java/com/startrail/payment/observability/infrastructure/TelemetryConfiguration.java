@@ -1,4 +1,4 @@
-package com.startrail.payment.diagnostics.infrastructure;
+package com.startrail.payment.observability.infrastructure;
 
 import io.micrometer.core.instrument.config.MeterFilter;
 import org.springframework.context.annotation.Bean;

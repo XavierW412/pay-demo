@@ -1,6 +1,6 @@
 package com.startrail.payment.integrations.airwallex.webhook;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentDetails;
 import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentIntentGateway;
 import com.startrail.payment.notification.PaymentStatusOutboxWriter;

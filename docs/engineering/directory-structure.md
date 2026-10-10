@@ -84,7 +84,7 @@ startrail-payment/
 │       │   └── audit/
 │       ├── shared/                   # 确认跨模块复用的组件和技术能力
 │       │   ├── components/           # 跨模块复用的业务组件
-│       │   └── diagnostics/          # 前端事件上报和错误提示
+│       │   └── components/           # 跨模块组件，包括普通页面错误边界
 │       ├── assets/
 │       └── styles/                   # Tailwind 主入口、CSS 变量和项目主题令牌
 ├── mock-xingzhe/                     # 仅本地开发使用的独立模拟星辙前端
@@ -108,7 +108,7 @@ startrail-payment/
 │       │   │   ├── notification/
 │       │   │   ├── reconciliation/
 │       │   │   ├── operations/
-│       │   │   ├── diagnostics/       # 事件、请求关联、指标与追踪
+│       │   │   ├── observability/     # 请求关联、安全日志、支付指标与追踪
 │       │   │   ├── identity/
 │       │   │   ├── audit/
 │       │   │   ├── integrations/
@@ -130,7 +130,7 @@ startrail-payment/
 │   │   ├── payment/
 │   │   ├── refund/
 │   │   ├── notification/
-│   │   ├── operations/observability-diagnostics.md
+│   │   ├── operations/payment-observability.md
 │   │   └── reconciliation/
 │   ├── engineering/
 │   │   ├── code-style.md
@@ -188,7 +188,7 @@ payment/
 - `payment`、`refund`、`notification`、`reconciliation` 分别管理支付、退款执行、结果通知和资金核对。
 - `identity` 和 `audit` 负责员工身份权限及操作留痕。
 - `integrations` 隔离星辙和 Airwallex 外部协议；业务规则不写进外部适配器。
-- `diagnostics` 保存技术事件和处理历史，提供关联编号、受限前端上报及聚合监控；不拥有支付或退款状态。
+- `observability` 保存支付服务的请求关联、安全日志、指标和追踪能力；不提供客户端事件收集或诊断事件管理。
 - 模块不直接访问其他模块的 Repository 或内部表；通过明确的业务接口协作。
 
 ## 7. 增删目录的规则

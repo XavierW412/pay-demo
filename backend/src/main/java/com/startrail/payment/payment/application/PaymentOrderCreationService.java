@@ -1,6 +1,6 @@
 package com.startrail.payment.payment.application;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.startrail.payment.payment.domain.PaymentOrderConflictException;
 import com.startrail.payment.checkout.application.CheckoutTokenService;

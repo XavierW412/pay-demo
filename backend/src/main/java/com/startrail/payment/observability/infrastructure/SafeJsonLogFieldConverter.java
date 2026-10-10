@@ -1,4 +1,4 @@
-package com.startrail.payment.diagnostics.infrastructure;
+package com.startrail.payment.observability.infrastructure;
 
 import ch.qos.logback.classic.pattern.ClassicConverter;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -17,7 +17,6 @@ public class SafeJsonLogFieldConverter extends ClassicConverter {
             case "environment" -> event.getLoggerContextVO().getPropertyMap().get("environment");
             case "requestId" -> event.getMDCPropertyMap().get("requestId");
             case "traceId" -> traceId(event.getMDCPropertyMap().get("traceId"));
-            case "diagnosticId" -> event.getMDCPropertyMap().get("diagnosticId");
             case "routeTemplate" -> event.getMDCPropertyMap().get("routeTemplate");
             case "httpStatus" -> event.getMDCPropertyMap().get("httpStatus");
             case "exceptionClass" -> event.getMDCPropertyMap().get("exceptionClass");

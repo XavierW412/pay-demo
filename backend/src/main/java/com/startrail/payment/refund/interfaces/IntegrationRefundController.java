@@ -1,7 +1,6 @@
 package com.startrail.payment.refund.interfaces;
 
-import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
-import com.startrail.payment.diagnostics.infrastructure.DiagnosticLogContext;
+import com.startrail.payment.observability.infrastructure.SafeErrorLogContext;
 import com.startrail.payment.integrations.startrail.IntegrationSignatureVerifier;
 import com.startrail.payment.refund.application.RefundExecutionService;
 import com.startrail.payment.refund.application.RefundRequestException;
@@ -29,11 +28,9 @@ public class IntegrationRefundController {
     private final RefundExecutionService executionService;
     private final ObjectMapper objectMapper;
     private final String refundInboundSecret;
-    private final DiagnosticIdGenerator diagnosticIdGenerator;
 
     public IntegrationRefundController(IntegrationSignatureVerifier signatureVerifier,
             RefundExecutionService executionService, ObjectMapper objectMapper,
-            DiagnosticIdGenerator diagnosticIdGenerator,
             @Value("${startrail.integration.refund-inbound-secret}") String refundInboundSecret,
             @Value("${startrail.integration.inbound-secret}") String paymentInboundSecret,
             @Value("${startrail.integration.outbound-secret}") String notificationSecret) {
@@ -45,7 +42,6 @@ public class IntegrationRefundController {
         this.executionService = executionService;
         this.objectMapper = objectMapper;
         this.refundInboundSecret = refundInboundSecret;
-        this.diagnosticIdGenerator = diagnosticIdGenerator;
     }
 
     @PostMapping
@@ -69,10 +65,9 @@ public class IntegrationRefundController {
 
     @ExceptionHandler(RefundRequestException.class)
     public ResponseEntity<ApiErrorResponse> handleRefundError(RefundRequestException exception) {
-        String diagnosticId = diagnosticIdGenerator.generate();
-        DiagnosticLogContext.record(LOGGER, diagnosticId, exception.getClass().getSimpleName(),
+        SafeErrorLogContext.record(LOGGER, exception.getClass().getSimpleName(),
                 exception.httpStatus().value(), exception);
         return ResponseEntity.status(exception.httpStatus())
-                .body(new ApiErrorResponse(exception.code(), exception.getMessage(), Instant.now(), diagnosticId));
+                .body(new ApiErrorResponse(exception.code(), exception.getMessage(), Instant.now()));
     }
 }

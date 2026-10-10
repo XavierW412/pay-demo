@@ -1,4 +1,4 @@
-package com.startrail.payment.diagnostics.infrastructure;
+package com.startrail.payment.observability.infrastructure;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -29,7 +29,7 @@ public class PaymentTelemetry {
             MeterRegistry meterRegistry,
             ObservationRegistry observationRegistry,
             JdbcTemplate jdbcTemplate,
-            @Value("${diagnostics.telemetry.stale-pending-minutes:15}") int stalePendingMinutes) {
+            @Value("${payment.telemetry.stale-pending-minutes:15}") int stalePendingMinutes) {
         this.meterRegistry = meterRegistry;
         this.observationRegistry = observationRegistry;
         this.jdbcTemplate = jdbcTemplate;
@@ -130,7 +130,7 @@ public class PaymentTelemetry {
     }
 
     /** Refreshes bounded aggregate counts outside request and payment processing paths. */
-    @Scheduled(fixedDelayString = "${diagnostics.telemetry.queue-refresh-delay-ms:60000}", initialDelay = 10000)
+    @Scheduled(fixedDelayString = "${payment.telemetry.queue-refresh-delay-ms:60000}", initialDelay = 10000)
     public void refreshQueueMetrics() {
         try {
             set(QueueMetric.PAYMENT_AWAITING_VERIFICATION, count("""

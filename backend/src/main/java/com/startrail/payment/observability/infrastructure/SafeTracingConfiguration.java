@@ -1,4 +1,4 @@
-package com.startrail.payment.diagnostics.infrastructure;
+package com.startrail.payment.observability.infrastructure;
 
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;

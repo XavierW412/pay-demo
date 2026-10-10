@@ -1,7 +1,6 @@
 package com.startrail.payment.operations.security;
 
-import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
-import com.startrail.payment.diagnostics.infrastructure.DiagnosticLogContext;
+import com.startrail.payment.observability.infrastructure.SafeErrorLogContext;
 import com.startrail.payment.shared.interfaces.ApiErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,13 +21,10 @@ public class OperatorAccountStatusFilter extends OncePerRequestFilter {
     private static final Logger LOGGER = LoggerFactory.getLogger(OperatorAccountStatusFilter.class);
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
-    private final DiagnosticIdGenerator diagnosticIdGenerator;
 
-    public OperatorAccountStatusFilter(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
-            DiagnosticIdGenerator diagnosticIdGenerator) {
+    public OperatorAccountStatusFilter(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
-        this.diagnosticIdGenerator = diagnosticIdGenerator;
     }
 
     @Override
@@ -83,11 +79,10 @@ public class OperatorAccountStatusFilter extends OncePerRequestFilter {
     }
 
     private void writeError(HttpServletResponse response, int status, String code, String message) throws IOException {
-        String diagnosticId = diagnosticIdGenerator.generate();
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
-        DiagnosticLogContext.record(LOGGER, diagnosticId, code, status, null);
-        objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse(code, message, Instant.now(), diagnosticId));
+        SafeErrorLogContext.record(LOGGER, code, status, null);
+        objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse(code, message, Instant.now()));
     }
 
     private record AccountState(boolean active, boolean expired) {}

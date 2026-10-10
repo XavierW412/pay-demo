@@ -1,6 +1,6 @@
 package com.startrail.payment.integrations.airwallex.webhook;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;

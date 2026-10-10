@@ -44,7 +44,3 @@ server:
 management:
   server:
     address: 127.0.0.1
-
-diagnostics:
-  telemetry:
-    queue-refresh-delay-ms: ${DIAGNOSTICS_TELEMETRY_QUEUE_REFRESH_DELAY_MS:60000}

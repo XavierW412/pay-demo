@@ -1,7 +1,7 @@
-package com.startrail.payment.diagnostics.application;
+package com.startrail.payment.observability.infrastructure;
 
-public final class DiagnosticStackFrames {
-    private DiagnosticStackFrames() {}
+public final class SafeStackFrames {
+    private SafeStackFrames() {}
 
     public static String summarize(Throwable exception) {
         StringBuilder summary = new StringBuilder();

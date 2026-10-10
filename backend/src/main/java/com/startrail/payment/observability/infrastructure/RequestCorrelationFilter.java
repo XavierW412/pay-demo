@@ -1,7 +1,5 @@
-package com.startrail.payment.diagnostics.interfaces;
+package com.startrail.payment.observability.infrastructure;
 
-import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
-import com.startrail.payment.diagnostics.application.DiagnosticStackFrames;
 import com.startrail.payment.shared.interfaces.ApiErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,11 +22,9 @@ import tools.jackson.databind.ObjectMapper;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestCorrelationFilter extends OncePerRequestFilter {
     private static final Logger LOGGER = LoggerFactory.getLogger(RequestCorrelationFilter.class);
-    private final DiagnosticIdGenerator diagnosticIdGenerator;
     private final ObjectMapper objectMapper;
 
-    public RequestCorrelationFilter(DiagnosticIdGenerator diagnosticIdGenerator, ObjectMapper objectMapper) {
-        this.diagnosticIdGenerator = diagnosticIdGenerator;
+    public RequestCorrelationFilter(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
@@ -40,7 +36,7 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
             response.setHeader("X-Request-Id", requestId);
             putMdc("requestId", requestId);
         } catch (RuntimeException ignored) {
-            // 关联信息建立失败时仍继续支付请求。
+            // 请求日志上下文建立失败时仍继续支付请求。
         }
         try {
             chain.doFilter(request, response);
@@ -66,15 +62,12 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
     }
 
     private boolean handleUnhandledFailure(HttpServletResponse response, String requestId, Exception exception) {
-        String diagnosticId = diagnosticIdGenerator.generate();
         try {
-            putMdc("diagnosticId", diagnosticId);
             putMdc("exceptionClass", exception.getClass().getSimpleName());
-            putMdc("stackFrames", DiagnosticStackFrames.summarize(exception));
+            putMdc("stackFrames", SafeStackFrames.summarize(exception));
             putMdc("httpStatus", Integer.toString(HttpServletResponse.SC_INTERNAL_SERVER_ERROR));
             safeLog(true);
         } finally {
-            removeMdc("diagnosticId");
             removeMdc("exceptionClass");
             removeMdc("stackFrames");
             removeMdc("httpStatus");
@@ -88,7 +81,7 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
             response.setHeader("X-Request-Id", requestId);
             response.setContentType("application/json;charset=UTF-8");
             objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse("INTERNAL_ERROR",
-                    "服务暂时不可用，请稍后重试", Instant.now(), diagnosticId));
+                    "服务暂时不可用，请稍后重试", Instant.now()));
             return true;
         } catch (IOException | RuntimeException ignored) {
             // 响应已提交或连接中断时，保留原始异常供容器处理。
@@ -117,7 +110,7 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
                 LOGGER.info("请求完成");
             }
         } catch (RuntimeException ignored) {
-            // 诊断日志故障不影响支付请求。
+            // 运行日志故障不影响支付请求。
         }
     }
 
@@ -125,7 +118,7 @@ public class RequestCorrelationFilter extends OncePerRequestFilter {
         try {
             MDC.put(key, value);
         } catch (RuntimeException ignored) {
-            // 诊断上下文不可用时仍继续处理请求。
+            // 请求日志上下文不可用时仍继续处理请求。
         }
     }
 

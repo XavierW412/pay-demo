@@ -10,7 +10,7 @@
 
 已实现的后续模块设计：[运营后台](./operations/operations-console.md)、[支付资金总览](./operations/finance-overview.md)、[星辙指令退款执行](./refund/refund-execution.md)、[逐笔支付状态核查](./reconciliation/payment-status-check.md)。支付状态核查与资金总览尚未连接 Airwallex 结算报告，不能当作完整资金结算对账。
 
-技术事件、关联编号、角色权限、指标及本地监控故障边界见[可观测性与技术诊断](./operations/observability-diagnostics.md)；诊断记录不替代支付或退款状态。
+服务端请求日志、支付链路指标、追踪和本地监控边界见[支付服务运行监控](./operations/payment-observability.md)。运行监控只用于运维观察，不提供用户端故障上报或运营后台诊断事件管理。
 
 跨参与方接口字段、签名方向、幂等、支付/退款状态映射及生产待确认项见[星辙与 Airwallex 支付接口契约](./integration/payment-interface-contracts.md)。星辙相关字段仍是本地模拟/提议契约，不代表甲方生产协议。
 

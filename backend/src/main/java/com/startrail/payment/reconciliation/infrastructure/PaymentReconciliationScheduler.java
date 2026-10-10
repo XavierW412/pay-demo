@@ -1,6 +1,6 @@
 package com.startrail.payment.reconciliation.infrastructure;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.reconciliation.application.PaymentReconciliationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

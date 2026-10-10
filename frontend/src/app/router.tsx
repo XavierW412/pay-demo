@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { DiagnosticNoticeHost } from '@/shared/diagnostics/DiagnosticErrorBoundary'
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { CheckoutPage, CheckoutReturnPage } from '@/modules/checkout'
 import { OperationsLayout } from '@/modules/operations/OperationsLayout'
@@ -8,7 +7,6 @@ import { OperationsRegisterPage } from '@/modules/operations/OperationsRegisterP
 import { OperationsTransactionListPage } from '@/modules/operations/OperationsTransactionListPage'
 import { OperationsTransactionDetailPage } from '@/modules/operations/OperationsTransactionDetailPage'
 import { OperationsAuditPage } from '@/modules/operations/OperationsAuditPage'
-import { OperationsDiagnosticsPage } from '@/modules/operations/OperationsDiagnosticsPage'
 import { OperationsTeamPage } from '@/modules/operations/OperationsTeamPage'
 import { OperationsReconciliationPage } from '@/modules/operations/OperationsReconciliationPage'
 import { OperationsFinanceOverviewPage } from '@/modules/operations/OperationsFinanceOverviewPage'
@@ -48,7 +46,6 @@ function LegacyMockXingzheOrderReturnPage() {
 export function AppRouter() {
   return (
     <BrowserRouter>
-      <DiagnosticNoticeHost />
       <Routes>
         <Route path="/" element={<Navigate to="/operations" replace />} />
         <Route path="/checkout/:opaqueToken/result" element={<CheckoutReturnPage />} />
@@ -64,8 +61,6 @@ export function AppRouter() {
           <Route path="transactions/:paymentOrderId" element={<OperationsTransactionDetailPage />} />
           <Route path="audit" element={<OperationsAuditPage />} />
           <Route path="reconciliation" element={<OperationsReconciliationPage />} />
-          <Route path="diagnostics" element={<OperationsDiagnosticsPage />} />
-          <Route path="diagnostics/:diagnosticId" element={<OperationsDiagnosticsPage />} />
           <Route path="team" element={<OperationsTeamPage />} />
         </Route>
         <Route path="*" element={<PageNotFound />} />

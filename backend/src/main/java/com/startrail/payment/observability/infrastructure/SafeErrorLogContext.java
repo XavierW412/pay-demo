@@ -1,21 +1,19 @@
-package com.startrail.payment.diagnostics.infrastructure;
+package com.startrail.payment.observability.infrastructure;
 
-import com.startrail.payment.diagnostics.application.DiagnosticStackFrames;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
-/** 诊断日志只作辅助记录，不能改变业务请求或错误响应。 */
-public final class DiagnosticLogContext {
-    private DiagnosticLogContext() {}
+/** 安全请求日志只作辅助记录，不能改变业务请求或错误响应。 */
+public final class SafeErrorLogContext {
+    private SafeErrorLogContext() {}
 
-    public static void record(Logger logger, String diagnosticId, String exceptionClass, int httpStatus,
+    public static void record(Logger logger, String exceptionClass, int httpStatus,
             Throwable exception) {
         try {
-            putSafely("diagnosticId", diagnosticId);
             putSafely("exceptionClass", exceptionClass);
             putSafely("httpStatus", Integer.toString(httpStatus));
             if (httpStatus >= 500 && exception != null) {
-                putSafely("stackFrames", DiagnosticStackFrames.summarize(exception));
+                putSafely("stackFrames", SafeStackFrames.summarize(exception));
             }
             try {
                 if (httpStatus >= 500) {
@@ -27,9 +25,8 @@ public final class DiagnosticLogContext {
                 // 日志后端故障不能影响业务请求。
             }
         } catch (RuntimeException ignored) {
-            // 栈帧摘要等诊断数据读取失败时仍需完成原响应。
+            // 安全日志上下文读取失败时仍需完成原响应。
         } finally {
-            removeSafely("diagnosticId");
             removeSafely("exceptionClass");
             removeSafely("httpStatus");
             removeSafely("stackFrames");

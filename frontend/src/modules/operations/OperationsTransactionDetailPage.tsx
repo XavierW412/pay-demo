@@ -5,7 +5,6 @@ import { Link, useLocation, useOutletContext, useParams } from 'react-router-dom
 import { Button } from '@/components/ui/button'
 import axios from 'axios'
 import type { OperatorSession } from './api'
-import type { DiagnosticApiError } from '@/shared/api/client'
 import { addOperatorNote, confirmRefundExecution, getReconciliationHistory, getRefundsForPayment, getTransactionDetail, refreshProviderStatus, refreshRefundStatus, retryNotification, runReconciliationCheck, type RefundStatusResult } from './api'
 import { ConfirmActionDialog } from './ConfirmActionDialog'
 import { auditActionLabel, auditOutcomeLabel, formatMoney, formatTime, notificationLabel, paymentLabel, reconciliationFailureLabel, reconciliationIssueLabel, reconciliationOutcomeLabel, refundBusinessOutcomeLabel, refundLabel } from './format'
@@ -15,7 +14,6 @@ type Action = 'refresh' | 'retry' | 'reconcile'
 const operationFailureMessage = (action: Action, error: unknown): string => {
   const title = action === 'reconcile' ? '支付核查未能完成' : action === 'refresh' ? '支付状态核实未能完成' : '通知重试未能完成'
   if (!axios.isAxiosError(error)) return `${title}。请检查服务状态后重试。`
-  const diagnosticError = error as DiagnosticApiError
   const status = error.response?.status
   const body: unknown = error.response?.data
   const serverMessage = body && typeof body === 'object' && 'message' in body
@@ -26,8 +24,7 @@ const operationFailureMessage = (action: Action, error: unknown): string => {
     : status === 429 && action === 'reconcile'
       ? 'Airwallex 查询频率已达上限，请稍后再做核查。'
       : serverMessage ?? `${title}。请检查服务状态后重试。`
-  const reference = diagnosticError.diagnosticId ?? diagnosticError.requestId
-  return reference ? `${detail} 诊断编号：${reference}` : detail
+  return detail
 }
 
 const refundRefreshOutcomeLabel = (outcome: string): string => ({

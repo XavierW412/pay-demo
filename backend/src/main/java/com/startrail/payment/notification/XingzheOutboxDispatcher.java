@@ -1,6 +1,6 @@
 package com.startrail.payment.notification;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.integrations.startrail.IntegrationSigner;
 import java.time.Instant;
 import java.util.UUID;

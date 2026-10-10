@@ -1,7 +1,6 @@
 package com.startrail.payment.shared.interfaces;
 
-import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
-import com.startrail.payment.diagnostics.infrastructure.DiagnosticLogContext;
+import com.startrail.payment.observability.infrastructure.SafeErrorLogContext;
 import com.startrail.payment.integrations.startrail.InvalidIntegrationSignatureException;
 import com.startrail.payment.checkout.application.CheckoutContextNotFoundException;
 import com.startrail.payment.integrations.airwallex.auth.AirwallexConfigurationException;
@@ -27,12 +26,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
-    private final DiagnosticIdGenerator diagnosticIdGenerator;
-
-    public ApiExceptionHandler(DiagnosticIdGenerator diagnosticIdGenerator) {
-        this.diagnosticIdGenerator = diagnosticIdGenerator;
-    }
-
     @ExceptionHandler(InvalidOperatorRequestException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidOperatorRequest(InvalidOperatorRequestException exception) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_OPERATOR_REQUEST", exception.getMessage(), exception);
@@ -117,8 +110,7 @@ public class ApiExceptionHandler {
 
     private ResponseEntity<ApiErrorResponse> response(int status, String code, String message,
             Exception exception) {
-        String diagnosticId = diagnosticIdGenerator.generate();
-        DiagnosticLogContext.record(LOGGER, diagnosticId, exception.getClass().getSimpleName(), status, exception);
-        return ResponseEntity.status(status).body(new ApiErrorResponse(code, message, Instant.now(), diagnosticId));
+        SafeErrorLogContext.record(LOGGER, exception.getClass().getSimpleName(), status, exception);
+        return ResponseEntity.status(status).body(new ApiErrorResponse(code, message, Instant.now()));
     }
 }

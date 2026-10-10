@@ -40,9 +40,10 @@ management:
           endpoint: ${MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
           transport: ${MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT:http}
 
-diagnostics:
+payment:
   telemetry:
-    queue-refresh-delay-ms: ${DIAGNOSTICS_TELEMETRY_QUEUE_REFRESH_DELAY_MS:60000}
+    queue-refresh-delay-ms: ${PAYMENT_TELEMETRY_QUEUE_REFRESH_DELAY_MS:60000}
+    stale-pending-minutes: ${PAYMENT_TELEMETRY_STALE_PENDING_MINUTES:15}
 
 server:
   shutdown: graceful

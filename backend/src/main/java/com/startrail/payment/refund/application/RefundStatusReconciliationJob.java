@@ -1,6 +1,6 @@
 package com.startrail.payment.refund.application;
 
-import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
+import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.payment.application.PaymentOrderRepository;
 import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway;
 import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway.ProviderRefund;
