@@ -10,6 +10,7 @@ import { OperationsAuditPage } from '@/modules/operations/OperationsAuditPage'
 import { OperationsTeamPage } from '@/modules/operations/OperationsTeamPage'
 import { OperationsReconciliationPage } from '@/modules/operations/OperationsReconciliationPage'
 import { OperationsFinanceOverviewPage } from '@/modules/operations/OperationsFinanceOverviewPage'
+import { OperationsWorkbenchPage } from '@/modules/operations/OperationsWorkbenchPage'
 
 function PageNotFound() {
   return (
@@ -48,12 +49,13 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<Navigate to="/operations" replace />} />
         <Route path="/checkout/:opaqueToken/result" element={<CheckoutReturnPage />} />
+        <Route path="/checkout/return/:opaqueToken" element={<CheckoutReturnPage />} />
         <Route path="/checkout/:opaqueToken" element={<CheckoutPage />} />
         {import.meta.env.DEV && <Route path="/mock-xingzhe/order/:businessOrderId" element={<LegacyMockXingzheOrderReturnPage />} />}
         <Route path="/operations/login" element={<OperationsLoginPage />} />
         <Route path="/operations/register/:token" element={<OperationsRegisterPage />} />
         <Route path="/operations" element={<OperationsLayout />}>
-          <Route index element={<OperationsFinanceOverviewPage />} />
+          <Route index element={<OperationsWorkbenchPage />} />
           <Route path="finance" element={<OperationsFinanceOverviewPage />} />
           <Route path="transactions" element={<OperationsTransactionListPage />} />
           <Route path="transactions/:paymentOrderId" element={<OperationsTransactionDetailPage />} />

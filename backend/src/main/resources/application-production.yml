@@ -17,6 +17,8 @@ startrail:
     business-order-url-template: ${STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE}
 
 payment:
+  status-refresh:
+    poll-delay-ms: ${PAYMENT_STATUS_REFRESH_POLL_DELAY_MS:10000}
   checkout:
     public-base-url: ${PAYMENT_CHECKOUT_PUBLIC_BASE_URL}
 

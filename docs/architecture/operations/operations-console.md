@@ -22,12 +22,38 @@
 
 实际结算入账金额和手续费字段当前为空，数据源状态为 `AIRWALLEX_SETTLEMENT_REPORT_NOT_CONNECTED`。未接入结算报告时不从支付成功额和退款额推算到账；用户界面明确提示“待接入”。支付成功、退款 API 的 `SUCCEEDED` 和 Airwallex 实际结算批次是分别记录的事实。
 
-列表基于 `payment_order`，按创建时间倒序分页，支持星辙订单号或本项目支付单号搜索、支付状态筛选。支付通知状态只从付款事件的 `notification_outbox` 读取，退款通知分开显示；最近一笔退款状态来自 `refund_order`。尚无退款指令时只说明“本项目未收到指令”，不能推断星辙没有业务退款请求。结算报表尚未接入时显示“待接入”，不能伪造“已结算”。详情展示关联编号、金额、币种、Airwallex Payment Intent 编号、支付与通知状态、退款记录、核查历史、处理备注及审计。
+列表基于 `payment_order`，按创建时间倒序分页，支持星辙订单号或本项目支付单号搜索、支付状态筛选。支付通知状态只从付款事件的 `notification_outbox` 读取，退款通知分开显示；退款状态栏按待确认、待核实、拦截、处理中、终态的优先级显示最需关注的一笔，不代表最近创建的一笔；详情列出该支付单的全部退款指令。尚无退款指令时只说明“本项目未收到指令”，不能推断星辙没有业务退款请求。结算报表尚未接入时显示“待接入”，不能伪造“已结算”。详情展示关联编号、金额、币种、Airwallex Payment Intent 编号、支付与通知状态、退款记录、核查历史、处理备注及审计。
 
-员工主动查询 Airwallex 时仍校验 Payment Intent ID、业务订单号、金额、币种后更新状态；查询频率受服务端限制。通知重试只针对失败待重试的 outbox 项，不能重新发送已送达项。备注只留痕，不改变资金状态。所有动作记录操作者、目标、时间、结果和安全的简短说明。
+运营页面在可见时自动重新读取当前页面已打开的查询：列表与工作台每 10 秒一次，交易详情每 3 秒一次；切到其他浏览器标签页时暂停，并提供手动刷新。该刷新只读取支付服务数据库，不会因此主动查询 Airwallex。支付和退款的服务商状态仍由 Webhook、服务端定时核实或员工点击即时核实更新。
+
+员工主动查询 Airwallex 时仍校验 Payment Intent ID、业务订单号、金额、币种后更新状态；查询频率受服务端限制。通知异常队列显示可重试的 `RETRY` 项和到期未投递的 `PENDING` 项。通知重试只针对服务端允许重试的记录，不能重新发送已送达项。备注只留痕，不改变资金状态。所有动作记录操作者、目标、时间、结果和安全的简短说明。
 
 ## 数据与外部条件
 
 Flyway 创建运营账号、邀请、备注和审计表。启动时按环境变量首次创建固定所有者与首位星辙员工管理员，已有账号不覆盖密码。邀请令牌只保存哈希，设置账号后立即失效。真实星辙员工目录和角色授权规则尚待甲方确认；本地账号系统是当前软件可运行的独立方案。
 
 退款申请与业务审批由星辙负责。运营后台的管理员确认只发生在星辙已批准并通过支付侧核对之后；运营后台不批准业务退款，也不允许跳过星辙批准步骤。逐笔支付核查会记录差异，但 Airwallex 结算报告与星辙正式账本仍待接入。
+
+## 后台重做后的接口与页面结构
+
+后台首页为待办优先的运营工作台，待办从真实异常查询接口读取，CNY/USD 资金摘要单独调用财务接口；页面故障彼此隔离。工作台队列包含待确认退款、退款待核实/异常、支付核查差异和通知失败，每项带支付单、业务订单、金额币种及原记录状态。近期活动只读取通知 outbox、退款更新时间和员工审计，不补造支付历史。
+
+现有运营查询接口：
+
+- `GET /api/v1/operations/workbench?from&to`：返回日期范围、四类队列计数与最近五条明细、可追溯近期活动。待办计数与异常队列使用相同查询口径；财务摘要由页面独立调用 `/finance/overview`，防止一类查询失败遮蔽另一类数据。
+- `GET /api/v1/operations/exceptions?type&page&size`：`type` 仅允许 `REFUND_CONFIRMATION`、`REFUND_REVIEW`、`PAYMENT_DIFFERENCE`、`NOTIFICATION_FAILURE`；返回服务端分页及精确关联编号。所有资金相关队列排除 `LOCAL_SIMULATOR`。
+- `GET /api/v1/operations/transactions?query&status&currency&provider&refundStatus&notificationStatus&from&to&page&size`：后端白名单校验筛选值，按创建时间和支付单 UUID 稳定排序；搜索可匹配业务订单号、本项目支付单、Payment Intent 和关联退款编号。日期按 `Asia/Shanghai`，最多 93 天。
+- `GET /api/v1/operations/audit?from&to&actor&action&outcome&businessOrderId&paymentOrderId&page&size`：只读服务端分页审计；员工/邀请动作可以没有支付单关联。保留旧 `limit` 参数作为过渡兼容。
+- `GET /api/v1/operations/team/accounts?page&size`、`GET /api/v1/operations/team/invitations?page&size`：员工与邀请目录。邀请响应不含一次性令牌及其摘要。
+- `DELETE /api/v1/operations/team/invitations/{invitationId}`：只撤销尚未使用且未过期的邀请。
+- `PATCH /api/v1/operations/team/accounts/{accountId}/active`：请求体为 `{ "active": true|false }`；只允许员工管理员管理普通员工。停用后，服务端在每个运营请求中重新检查账号状态并注销停用账号会话。
+
+### 退款即时核实
+
+`POST /api/v1/operations/refunds/{refundId}/refresh` 只允许 `STAFF_OPERATOR` 与 `STAFF_ADMIN`，只用于 `SUBMITTING`、`RECEIVED`、`ACCEPTED` 或 `NEEDS_REVIEW` 的 Airwallex 退款。已有服务商退款编号时只调用按编号查询；没有编号时只按原 Payment Intent 和已保存的服务商 `request_id` 查找。它不调用退款创建接口，也不生成新 `request_id`。
+
+服务端响应包含退款/业务/支付关联编号、金额、币种、本地与服务商状态、最近查询时间、星辙通知状态及 `outcome`。结果区分 `VERIFIED`、`NOT_FOUND`、`MISMATCH`、`PROVIDER_UNAVAILABLE` 与 `NOT_SUPPORTED`。未找到记录或服务商不可用都不等同于退款失败，原额度继续保留；编号、原支付、金额或币种不一致时转为 `NEEDS_REVIEW` 并保留说明。所有结果写入员工审计，不记录 Airwallex 凭证或完整远端响应。
+
+后台导航为运营工作台、交易、对账与异常、操作记录、员工与权限；`/operations/finance` 保留原资金详情书签。所有者仍只读，用户界面隐藏不能替代服务端授权。结算报告未接入前，到账与手续费保持空值并显示“待接入”，不使用支付减退款估算。
+
+实现范围不改变星辙业务退款审批权，不增加后台测试支付入口，也不把模拟星辙页面混入支付运营后台。真实星辙员工身份、生产字段与访问策略仍待甲方确认。

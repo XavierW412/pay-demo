@@ -19,9 +19,13 @@ const notificationLabels: Record<string, string> = {
 
 const auditActions: Record<string, string> = {
   REFRESH_PROVIDER_STATUS: '核实支付状态',
+  REFRESH_REFUND_STATUS: '核实退款状态',
   RETRY_NOTIFICATION: '重试星辙通知',
   ADD_EXCEPTION_NOTE: '添加处理备注',
   INVITE_OPERATOR: '创建员工邀请',
+  REVOKE_OPERATOR_INVITATION: '撤销员工邀请',
+  DISABLE_OPERATOR: '停用员工账号',
+  RESTORE_OPERATOR: '恢复员工账号',
   REGISTER_OPERATOR: '注册员工账号',
   CHECK_PAYMENT_RECONCILIATION: '执行支付核查',
   REFUND_CONFIRM_AND_SUBMIT: '确认并发起退款',
@@ -31,6 +35,14 @@ const auditOutcomes: Record<string, string> = {
   SUCCEEDED: '成功',
   FAILED: '失败',
   REQUIRES_REVIEW: '需核查',
+  VERIFIED: '已核实',
+  NOT_FOUND: '未找到',
+  MISMATCH: '不匹配',
+  PROVIDER_UNAVAILABLE: '服务商暂不可用',
+  NOT_SUPPORTED: '不支持',
+  BLOCKED: '已拦截',
+  REJECTED: '已拒绝',
+  CONFIRMED: '已确认',
 }
 
 export const paymentLabel = (status: string): string => paymentLabels[status] ?? status

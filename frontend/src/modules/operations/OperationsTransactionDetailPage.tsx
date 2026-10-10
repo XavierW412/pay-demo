@@ -1,21 +1,32 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, RefreshCw, Send } from 'lucide-react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useLocation, useOutletContext, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import type { OperatorSession } from './api'
-import { addOperatorNote, confirmRefundExecution, getReconciliationHistory, getRefundsForPayment, getTransactionDetail, refreshProviderStatus, retryNotification, runReconciliationCheck } from './api'
+import { addOperatorNote, confirmRefundExecution, getReconciliationHistory, getRefundsForPayment, getTransactionDetail, refreshProviderStatus, refreshRefundStatus, retryNotification, runReconciliationCheck, type RefundStatusResult } from './api'
 import { ConfirmActionDialog } from './ConfirmActionDialog'
 import { auditActionLabel, auditOutcomeLabel, formatMoney, formatTime, notificationLabel, paymentLabel, reconciliationIssueLabel, reconciliationOutcomeLabel, refundLabel } from './format'
 
 type Action = 'refresh' | 'retry' | 'reconcile'
 
+const refundRefreshOutcomeLabel = (outcome: string): string => ({
+  VERIFIED: '已核实：Airwallex 返回结果与原退款一致。',
+  NOT_FOUND: 'Airwallex 暂未找到原退款记录，结果仍待核实。',
+  MISMATCH: 'Airwallex 返回的数据与原退款不一致，需人工复核。',
+  PROVIDER_UNAVAILABLE: '暂时无法连接 Airwallex，结果仍待核实。',
+  NOT_SUPPORTED: '当前退款来源不支持 Airwallex 即时核实。',
+}[outcome] ?? '退款核实结果待确认。')
+
 export function OperationsTransactionDetailPage() {
   const { paymentOrderId = '' } = useParams()
+  const location = useLocation()
   const session = useOutletContext<OperatorSession>()
   const queryClient = useQueryClient()
   const [action, setAction] = useState<Action | null>(null)
   const [refundConfirmationId, setRefundConfirmationId] = useState<string | null>(null)
+  const [refreshingRefundId, setRefreshingRefundId] = useState<string | null>(null)
+  const [refundStatusResults, setRefundStatusResults] = useState<Record<string, RefundStatusResult>>({})
   const [pending, setPending] = useState(false)
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
@@ -35,6 +46,7 @@ export function OperationsTransactionDetailPage() {
     enabled: Boolean(paymentOrderId),
   })
   const transaction = detail.data?.transaction
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? '/operations/transactions'
   const canOperate = session.role !== 'OWNER_READONLY'
   const canConfirmRefund = session.role === 'STAFF_ADMIN'
 
@@ -45,6 +57,24 @@ export function OperationsTransactionDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ['operations-reconciliation-history', paymentOrderId] })
     await queryClient.invalidateQueries({ queryKey: ['operations-reconciliation-differences'] })
     await queryClient.invalidateQueries({ queryKey: ['operations-refunds', paymentOrderId] })
+    await queryClient.invalidateQueries({ queryKey: ['operations-exceptions'] })
+    await queryClient.invalidateQueries({ queryKey: ['operations-workbench'] })
+  }
+
+  const refreshRefund = async (refundId: string) => {
+    if (refreshingRefundId) return
+    setRefreshingRefundId(refundId)
+    setMessage('')
+    try {
+      const result = await refreshRefundStatus(refundId)
+      setRefundStatusResults((current) => ({ ...current, [refundId]: result }))
+      await reload()
+    } catch {
+      await reload()
+      setMessage('退款核实请求结果暂不可确认。已保留现有记录，请稍后重新读取状态；不要重新发起退款。')
+    } finally {
+      setRefreshingRefundId(null)
+    }
   }
 
   const confirmRefund = async () => {
@@ -104,7 +134,7 @@ export function OperationsTransactionDetailPage() {
 
   return (
     <section>
-      <Link className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" to="/operations/transactions"><ArrowLeft className="size-4" aria-hidden="true" />返回交易列表</Link>
+      <Link className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" to={returnTo}><ArrowLeft className="size-4" aria-hidden="true" />返回列表</Link>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold tracking-[0.16em] text-primary">PAYMENT DETAIL</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">交易详情</h1></div>{transaction && <span className="rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium">{paymentLabel(transaction.paymentStatus)}</span>}</div>
       {detail.isPending && <p className="mt-8 text-sm text-muted-foreground" role="status">正在读取交易详情…</p>}
       {detail.isError && <p className="mt-8 text-sm text-destructive" role="alert">交易详情读取失败，或该支付单不存在。</p>}
@@ -130,7 +160,25 @@ export function OperationsTransactionDetailPage() {
             </section>
             <section className="rounded-xl border border-border bg-card p-5 sm:p-6"><h2 className="text-base font-semibold">此笔交易的操作记录</h2><div className="mt-4 space-y-3">{detail.data?.audit.length ? detail.data.audit.map((item) => <div className="border-l-2 border-primary/30 pl-3 text-sm" key={item.id}><p className="font-medium">{item.actor} · {auditActionLabel(item.action)} · {auditOutcomeLabel(item.outcome)}</p><p className="mt-1 text-xs text-muted-foreground">{formatTime(item.createdAt)}{item.detail ? ` · ${item.detail}` : ''}</p></div>) : <p className="text-sm text-muted-foreground">暂无人工操作记录。</p>}</div></section>
             <section className="rounded-xl border border-border bg-card p-5 sm:p-6"><h2 className="text-base font-semibold">支付核查历史</h2><p className="mt-1 text-sm text-muted-foreground">逐笔比较本项目与空中云汇，并记录通知是否送达；不代表结算对账。</p><div className="mt-4 space-y-3">{checks.isPending && <p className="text-sm text-muted-foreground">正在读取核查历史…</p>}{checks.isError && <p className="text-sm text-destructive">核查历史读取失败。</p>}{checks.data?.length === 0 && <p className="text-sm text-muted-foreground">尚未生成核查记录。</p>}{checks.data?.map(({ snapshot }) => <div className="rounded-lg bg-muted/40 p-3 text-sm" key={snapshot.id}><p className="font-medium">{reconciliationOutcomeLabel(snapshot.outcome)} · {formatTime(snapshot.checkedAt)}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{snapshot.issueCodes.length ? snapshot.issueCodes.map(reconciliationIssueLabel).join('、') : '订单、金额、币种和状态一致'}</p></div>)}</div></section>
-            <section className="rounded-xl border border-border bg-card p-5 sm:p-6"><h2 className="text-base font-semibold">退款复核与执行</h2><p className="mt-1 text-sm text-muted-foreground">退款由星辙业务方批准。支付侧管理员复核无误后发起，不能手工标成退款成功。</p><div className="mt-4 space-y-3">{refunds.isPending && <p className="text-sm text-muted-foreground">正在读取退款记录…</p>}{refunds.isError && <p className="text-sm text-destructive">退款记录读取失败。</p>}{refunds.data?.length === 0 && <p className="text-sm text-muted-foreground">本项目尚未收到这笔支付的退款指令。</p>}{refunds.data?.map((refund) => <div className="rounded-lg bg-muted/40 p-3 text-sm" key={refund.id}><div className="flex flex-wrap justify-between gap-2"><strong>{formatMoney(refund.amount, refund.currency)}</strong><span>{refundLabel(refund.status)}</span></div><p className="mt-2 break-all font-mono text-xs text-muted-foreground">指令编号：{refund.refundRequestId}</p><p className="mt-1 break-all font-mono text-xs text-muted-foreground">Airwallex 退款编号：{refund.providerRefundId ?? '尚未返回'}</p>{refund.reviewReason && <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive">核对说明：{refund.reviewReason}</p>}<p className="mt-1 text-xs text-muted-foreground">星辙通知：{notificationLabel(refund.notificationStatus)} · {formatTime(refund.updatedAt)}</p>{canConfirmRefund && refund.status === 'PENDING_OPERATOR_CONFIRMATION' && <Button className="mt-3" type="button" size="sm" disabled={pending} onClick={() => setRefundConfirmationId(refund.id)}>确认并发起退款</Button>}</div>)}</div>{!canConfirmRefund && refunds.data?.some((refund) => refund.status === 'PENDING_OPERATOR_CONFIRMATION') && <p className="mt-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">此退款等待支付侧管理员确认；当前账号不能发起。</p>}</section>
+            <section className="rounded-xl border border-border bg-card p-5 sm:p-6"><h2 className="text-base font-semibold">退款复核与执行</h2><p className="mt-1 text-sm text-muted-foreground">退款由星辙业务方批准。支付侧管理员仅能确认已批准的退款；结果未知时只查询原退款，不会创建第二笔。</p><div className="mt-4 space-y-3">{refunds.isPending && <p className="text-sm text-muted-foreground">正在读取退款记录…</p>}{refunds.isError && <p className="text-sm text-destructive">退款记录读取失败。</p>}{refunds.data?.length === 0 && <p className="text-sm text-muted-foreground">本项目尚未收到这笔支付的退款指令。</p>}{refunds.data?.map((refund) => {
+              const refreshable = ['NEEDS_REVIEW', 'SUBMITTING', 'RECEIVED', 'ACCEPTED'].includes(refund.status)
+              const statusResult = refundStatusResults[refund.id]
+              return <div className="rounded-lg bg-muted/40 p-3 text-sm" key={refund.id}>
+                <div className="flex flex-wrap justify-between gap-2"><strong>{formatMoney(refund.amount, refund.currency)}</strong><span>{refundLabel(refund.status)}</span></div>
+                <p className="mt-2 break-all font-mono text-xs text-muted-foreground">星辙退款指令：{refund.refundRequestId}</p><p className="mt-1 break-all font-mono text-xs text-muted-foreground">Airwallex 退款编号：{refund.providerRefundId ?? '尚未返回'}</p>
+                {refund.reviewReason && <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive">核对说明：{refund.reviewReason}</p>}
+                <p className="mt-1 text-xs text-muted-foreground">星辙通知：{notificationLabel(refund.notificationStatus)} · 最近更新 {formatTime(refund.updatedAt)}</p>
+                {statusResult && <div className={`mt-3 rounded-md border p-3 text-xs leading-5 ${statusResult.outcome === 'VERIFIED' ? 'border-emerald-700/20 bg-emerald-500/5 text-emerald-800' : 'border-amber-700/20 bg-amber-500/5 text-amber-900'}`} role="status">
+                  <p className="font-medium">{refundRefreshOutcomeLabel(statusResult.outcome)}</p>
+                  <p className="mt-1">核实时间：{formatTime(statusResult.lastCheckedAt)} · Airwallex 状态：{statusResult.providerStatus ?? '未返回'} · 本地退款：{refundLabel(statusResult.status)}</p>
+                  {statusResult.reviewReason && <p className="mt-1">说明：{statusResult.reviewReason}</p>}
+                  {statusResult.outcome !== 'VERIFIED' && <p className="mt-1 font-medium">请勿重新发起退款。等待后台自动核查或按对账流程处理。</p>}
+                </div>}
+                {canOperate && transaction.provider === 'AIRWALLEX' && refreshable && <Button className="mt-3" type="button" size="sm" variant="outline" disabled={Boolean(refreshingRefundId) || pending} onClick={() => void refreshRefund(refund.id)}><RefreshCw className={`size-3.5 ${refreshingRefundId === refund.id ? 'animate-spin' : ''}`} aria-hidden="true" />{refreshingRefundId === refund.id ? '正在核实…' : '立即核实 Airwallex 退款状态'}</Button>}
+                {canConfirmRefund && refund.status === 'PENDING_OPERATOR_CONFIRMATION' && <Button className="mt-3" type="button" size="sm" disabled={pending || Boolean(refreshingRefundId)} onClick={() => setRefundConfirmationId(refund.id)}>确认并发起已批准退款</Button>}
+                {!canConfirmRefund && refund.status === 'PENDING_OPERATOR_CONFIRMATION' && <p className="mt-3 rounded-lg bg-background p-3 text-sm text-muted-foreground">此退款等待支付侧管理员确认；当前账号不能发起。</p>}
+              </div>
+            })}</div></section>
           </div>
           <aside className="space-y-5">
             <section className="rounded-xl border border-border bg-card p-5"><h2 className="text-base font-semibold">异常处理</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{transaction.provider === 'LOCAL_SIMULATOR' ? '本地模拟交易不执行服务商查询、退款或资金对账；仅保留通知状态与操作留痕。' : '核实会查询空中云汇的真实支付状态；通知重试仅适用于待重试的记录。'}</p>{canOperate ? <div className="mt-5 grid gap-2">{transaction.provider === 'AIRWALLEX' && <><Button type="button" variant="outline" onClick={() => setAction('refresh')}><RefreshCw className="size-4" aria-hidden="true" />核实并更新支付状态</Button><Button type="button" variant="outline" onClick={() => setAction('reconcile')}>记录一次支付核查</Button></>}<Button type="button" variant="outline" disabled={transaction.notificationStatus !== 'RETRY'} onClick={() => setAction('retry')}><Send className="size-4" aria-hidden="true" />重试星辙通知</Button></div> : <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">当前账号仅能查看记录，不能执行操作。</p>}</section>

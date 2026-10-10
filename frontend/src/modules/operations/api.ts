@@ -40,6 +40,7 @@ export interface OperatorAudit {
   id: number
   actor: string
   paymentOrderId: string | null
+  businessOrderId?: string | null
   action: string
   outcome: string
   detail: string | null
@@ -92,6 +93,67 @@ export interface RefundRow {
   reviewReason: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface RefundStatusResult {
+  refundId: string
+  refundRequestId: string
+  paymentOrderId: string
+  businessOrderId: string
+  providerRefundId: string | null
+  status: string
+  providerStatus: string | null
+  amount: string
+  currency: string
+  lastCheckedAt: string
+  notificationStatus: string
+  outcome: 'VERIFIED' | 'NOT_FOUND' | 'MISMATCH' | 'PROVIDER_UNAVAILABLE' | 'NOT_SUPPORTED'
+  reviewReason: string | null
+}
+
+export interface ExceptionItem {
+  type: string
+  paymentOrderId: string
+  businessOrderId: string
+  amount: string
+  currency: string
+  status: string
+  createdAt: string | null
+  updatedAt: string | null
+  issueCodes: string | null
+  checkedAt: string | null
+  eventId: string | null
+  deliveryStatus: string | null
+  attemptCount: number | null
+  nextAttemptAt: string | null
+  refundId: string | null
+  refundRequestId: string | null
+  providerRefundId: string | null
+}
+
+export interface OperationsPage<T> {
+  items: T[]
+  page: number
+  size: number
+  total: number
+}
+
+export interface OperatorAccount {
+  id: string
+  username: string
+  role: OperatorRole
+  active: boolean
+  createdAt: string
+}
+
+export interface OperatorInvitation {
+  id: string
+  issuedBy: string
+  status: 'PENDING' | 'USED' | 'REVOKED' | 'EXPIRED'
+  expiresAt: string
+  usedAt: string | null
+  revokedAt: string | null
+  createdAt: string
 }
 
 export interface FinanceCurrencySummary {
@@ -164,7 +226,14 @@ export const logoutOperator = async (): Promise<void> => {
 export const getTransactions = async (params: {
   query?: string
   status?: string
+  currency?: string
+  provider?: string
+  refundStatus?: string
+  notificationStatus?: string
+  from?: string
+  to?: string
   page?: number
+  size?: number
 }): Promise<TransactionPage> => {
   const response = await apiClient.get<TransactionPage>('/api/v1/operations/transactions', { params })
   return response.data
@@ -189,8 +258,18 @@ export const addOperatorNote = async (paymentOrderId: string, body: string): Pro
   await postWithCsrf(`/api/v1/operations/transactions/${encodeURIComponent(paymentOrderId)}/notes`, { body })
 }
 
-export const getOperatorAudit = async (): Promise<OperatorAudit[]> => {
-  const response = await apiClient.get<OperatorAudit[]>('/api/v1/operations/audit')
+export const getOperatorAudit = async (params: {
+  from?: string
+  to?: string
+  actor?: string
+  action?: string
+  outcome?: string
+  businessOrderId?: string
+  paymentOrderId?: string
+  page?: number
+  size?: number
+} = {}): Promise<OperationsPage<OperatorAudit>> => {
+  const response = await apiClient.get<OperationsPage<OperatorAudit>>('/api/v1/operations/audit', { params })
   return response.data
 }
 
@@ -224,6 +303,50 @@ export const runReconciliationCheck = async (paymentOrderId: string): Promise<Re
 export const getRefundsForPayment = async (paymentOrderId: string): Promise<RefundRow[]> => {
   const response = await apiClient.get<RefundRow[]>(
     `/api/v1/operations/transactions/${encodeURIComponent(paymentOrderId)}/refunds`,
+  )
+  return response.data
+}
+
+export const refreshRefundStatus = async (refundId: string): Promise<RefundStatusResult> => {
+  return postWithCsrf<RefundStatusResult>(`/api/v1/operations/refunds/${encodeURIComponent(refundId)}/refresh`)
+}
+
+export const getOperationsExceptions = async (params: {
+  type: string
+  page?: number
+  size?: number
+}): Promise<OperationsPage<ExceptionItem>> => {
+  const response = await apiClient.get<OperationsPage<ExceptionItem>>('/api/v1/operations/exceptions', { params })
+  return response.data
+}
+
+export const getOperatorAccounts = async (page = 0, size = 20): Promise<OperationsPage<OperatorAccount>> => {
+  const response = await apiClient.get<OperationsPage<OperatorAccount>>('/api/v1/operations/team/accounts', {
+    params: { page, size },
+  })
+  return response.data
+}
+
+export const getOperatorInvitations = async (page = 0, size = 20): Promise<OperationsPage<OperatorInvitation>> => {
+  const response = await apiClient.get<OperationsPage<OperatorInvitation>>('/api/v1/operations/team/invitations', {
+    params: { page, size },
+  })
+  return response.data
+}
+
+export const revokeOperatorInvitation = async (invitationId: string): Promise<void> => {
+  const csrf = await loadCsrf()
+  await apiClient.delete(`/api/v1/operations/team/invitations/${encodeURIComponent(invitationId)}`, {
+    headers: { [csrf.headerName]: csrf.token },
+  })
+}
+
+export const setOperatorActive = async (accountId: string, active: boolean): Promise<OperatorAccount> => {
+  const csrf = await loadCsrf()
+  const response = await apiClient.patch<OperatorAccount>(
+    `/api/v1/operations/team/accounts/${encodeURIComponent(accountId)}/active`,
+    { active },
+    { headers: { [csrf.headerName]: csrf.token } },
   )
   return response.data
 }

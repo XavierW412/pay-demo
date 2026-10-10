@@ -25,7 +25,7 @@ public class PaymentStatusRefreshScheduler {
         this.batchSize = Math.min(Math.max(batchSize, 1), 10);
     }
 
-    @Scheduled(fixedDelayString = "${payment.status-refresh.poll-delay-ms:60000}")
+    @Scheduled(fixedDelayString = "${payment.status-refresh.poll-delay-ms:10000}")
     public void refreshPendingPayments() {
         store.discoverEligibleOrders();
         for (var paymentOrderId : store.dueOrderIds(batchSize)) {
@@ -36,7 +36,7 @@ public class PaymentStatusRefreshScheduler {
             var claimed = lease.get();
             try {
                 var result = verificationService.verifyByPaymentOrderId(paymentOrderId);
-                var delaySeconds = result.providerQueried() ? 60 : RATE_LIMIT_RETRY_DELAY_SECONDS;
+                var delaySeconds = result.providerQueried() ? 10 : RATE_LIMIT_RETRY_DELAY_SECONDS;
                 if (!store.complete(claimed, delaySeconds)) {
                     LOGGER.warn("支付状态补查租约已失效，支付单 {}", paymentOrderId);
                 }

@@ -21,7 +21,7 @@ public class PaymentStatusRefreshStore {
                 WHERE payment_provider = 'AIRWALLEX'
                   AND provider_payment_intent_id IS NOT NULL
                   AND status IN ('CREATING', 'AWAITING_PAYMENT', 'PROCESSING', 'REQUIRES_REVIEW')
-                  AND created_at <= now() - INTERVAL '60 seconds'
+                  AND created_at <= now() - INTERVAL '10 seconds'
                 ON CONFLICT (payment_order_id) DO NOTHING
                 """);
     }
@@ -53,7 +53,7 @@ public class PaymentStatusRefreshStore {
                   AND p.payment_provider = 'AIRWALLEX'
                   AND p.provider_payment_intent_id IS NOT NULL
                   AND p.status IN ('CREATING', 'AWAITING_PAYMENT', 'PROCESSING', 'REQUIRES_REVIEW')
-                  AND p.created_at <= now() - INTERVAL '60 seconds'
+                  AND p.created_at <= now() - INTERVAL '10 seconds'
                 """, token, paymentOrderId);
         return claimed == 1 ? Optional.of(new PaymentStatusRefreshLease(paymentOrderId, token)) : Optional.empty();
     }

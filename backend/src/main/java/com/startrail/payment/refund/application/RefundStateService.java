@@ -11,7 +11,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class RefundStateService {
-    private static final Set<String> KNOWN_STATUSES = Set.of("RECEIVED", "ACCEPTED", "SUCCEEDED", "FAILED");
+    private static final Set<String> KNOWN_STATUSES = Set.of(
+            "RECEIVED", "ACCEPTED", "SETTLED", "SUCCEEDED", "FAILED");
 
     private final RefundJdbcRepository refunds;
     private final PaymentOrderRepository paymentOrders;
@@ -29,23 +30,26 @@ public class RefundStateService {
     public RefundRecord applyProviderResult(UUID refundId, ProviderRefund provider) {
         return transactions.execute(transaction -> {
             var current = refunds.lockById(refundId);
-            if (!matches(current, provider)) {
-                return review(current, "Airwallex 退款响应与本地指令不一致");
-            }
-            if (!KNOWN_STATUSES.contains(provider.status())) {
-                return review(current, "Airwallex 返回未识别的退款状态");
-            }
-            if ("SUCCEEDED".equals(current.status()) || "FAILED".equals(current.status())) {
-                if (!current.status().equals(provider.status())) {
-                    return review(current, "Airwallex 退款终态发生冲突");
+            if (isTerminal(current.status())) {
+                if (!matches(current, provider) || provider.status() == null
+                        || !KNOWN_STATUSES.contains(provider.status())
+                        || !current.status().equals(normalizeStatus(provider.status()))) {
+                    refunds.recordCheckFailure(refundId, "Airwallex 返回的退款结果与本地终态不一致；保留原终态待核查");
                 }
                 return current;
             }
-            if ("ACCEPTED".equals(current.status()) && "RECEIVED".equals(provider.status())) {
+            if (!matches(current, provider)) {
+                return review(current, "Airwallex 退款响应与本地指令不一致");
+            }
+            if (provider.status() == null || !KNOWN_STATUSES.contains(provider.status())) {
+                return review(current, "Airwallex 返回未识别的退款状态");
+            }
+            var localStatus = normalizeStatus(provider.status());
+            if ("ACCEPTED".equals(current.status()) && "RECEIVED".equals(localStatus)) {
                 return current;
             }
-            var changed = !current.status().equals(provider.status());
-            refunds.updateProviderState(refundId, provider.id(), provider.status(), provider.status(), Instant.now());
+            var changed = !current.status().equals(localStatus);
+            refunds.updateProviderState(refundId, provider.id(), localStatus, provider.status(), Instant.now());
             var updated = refunds.findById(refundId).orElseThrow();
             if (changed) {
                 notifications.enqueue(updated);
@@ -87,6 +91,10 @@ public class RefundStateService {
     }
 
     private RefundRecord review(RefundRecord current, String message) {
+        if (isTerminal(current.status())) {
+            refunds.recordCheckFailure(current.id(), message);
+            return current;
+        }
         refunds.markNeedsReview(current.id(), message);
         var updated = refunds.findById(current.id()).orElseThrow();
         if (!"NEEDS_REVIEW".equals(current.status())) {
@@ -105,5 +113,13 @@ public class RefundStateService {
                 && payment.providerPaymentIntentId().equals(provider.paymentIntentId())
                 && provider.amount() != null && local.amount().compareTo(provider.amount()) == 0
                 && local.currency().equals(provider.currency());
+    }
+
+    private static String normalizeStatus(String providerStatus) {
+        return "SETTLED".equals(providerStatus) ? "SUCCEEDED" : providerStatus;
+    }
+
+    private static boolean isTerminal(String status) {
+        return "SUCCEEDED".equals(status) || "FAILED".equals(status);
     }
 }

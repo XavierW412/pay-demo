@@ -1,0 +1,2 @@
+ALTER TABLE refund_order
+    ALTER COLUMN status TYPE VARCHAR(40);

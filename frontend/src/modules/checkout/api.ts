@@ -9,16 +9,18 @@ export const getCheckoutContext = async (opaqueToken: string) => {
   return response.data
 }
 
-export const getCheckoutStatus = async (opaqueToken: string): Promise<CheckoutStatus> => {
+export const getCheckoutReturnStatus = async (opaqueToken: string): Promise<CheckoutStatus> => {
   const response = await apiClient.get<CheckoutStatus>(
-    `/api/v1/checkout/${encodeURIComponent(opaqueToken)}/status`,
+    `/api/v1/checkout/return/${encodeURIComponent(opaqueToken)}`,
   )
+
   return response.data
 }
 
-export const refreshCheckoutStatus = async (opaqueToken: string): Promise<CheckoutStatus> => {
+export const refreshCheckoutReturn = async (opaqueToken: string): Promise<CheckoutStatus> => {
   const response = await apiClient.post<CheckoutStatus>(
-    `/api/v1/checkout/${encodeURIComponent(opaqueToken)}/refresh`,
+    `/api/v1/checkout/return/${encodeURIComponent(opaqueToken)}/refresh`,
   )
+
   return response.data
 }

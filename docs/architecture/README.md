@@ -10,6 +10,8 @@
 
 已实现的后续模块设计：[运营后台](./operations/operations-console.md)、[支付资金总览](./operations/finance-overview.md)、[星辙指令退款执行](./refund/refund-execution.md)、[逐笔支付状态核查](./reconciliation/payment-status-check.md)。支付状态核查与资金总览尚未连接 Airwallex 结算报告，不能当作完整资金结算对账。
 
+跨参与方接口字段、签名方向、幂等、支付/退款状态映射及生产待确认项见[星辙与 Airwallex 支付接口契约](./integration/payment-interface-contracts.md)。星辙相关字段仍是本地模拟/提议契约，不代表甲方生产协议。
+
 ## 2. 什么时候新增架构设计
 
 符合以下任一情况时，先写或更新对应设计，再开始实现：

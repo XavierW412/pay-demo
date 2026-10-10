@@ -11,13 +11,15 @@ public record CheckoutContextResponse(
         String currency,
         String countryCode,
         String environment,
-        String businessReturnUrl) {
+        String businessReturnUrl,
+        String returnPageUrl) {
     public static CheckoutContextResponse from(
             PaymentOrder paymentOrder,
             String clientSecret,
             String countryCode,
             String environment,
-            String businessReturnUrl) {
+            String businessReturnUrl,
+            String returnPageUrl) {
         return new CheckoutContextResponse(
                 paymentOrder.providerPaymentIntentId(),
                 clientSecret,
@@ -27,6 +29,7 @@ public record CheckoutContextResponse(
                 paymentOrder.currency(),
                 countryCode,
                 environment,
-                businessReturnUrl);
+                businessReturnUrl,
+                returnPageUrl);
     }
 }

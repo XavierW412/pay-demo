@@ -21,6 +21,7 @@ export interface CheckoutContext {
   countryCode?: string | null
   environment: PaymentEnvironment
   businessReturnUrl: string
+  returnPageUrl: string
 }
 
 export interface CheckoutStatus {

@@ -37,24 +37,26 @@ public class RefundStatusReconciliationJob {
     }
 
     private void reconcile(UUID id) {
+        var refund = refunds.findById(id).orElseThrow();
+        var payment = paymentOrders.findById(refund.paymentOrderId()).orElseThrow();
+        ProviderRefund providerRefund;
         try {
-            var refund = refunds.findById(id).orElseThrow();
-            var payment = paymentOrders.findById(refund.paymentOrderId()).orElseThrow();
-            ProviderRefund providerRefund;
             if (refund.providerRefundId() == null) {
                 providerRefund = airwallex.findByRequestId(
                         payment.providerPaymentIntentId(), refund.providerRequestId());
             } else {
                 providerRefund = airwallex.retrieve(refund.providerRefundId());
             }
-            if (providerRefund == null) {
-                stateService.markNeedsReview(id, "未查到退款记录，继续按服务商请求编号核实");
-                return;
-            }
-            stateService.applyProviderResult(id, providerRefund);
         } catch (RuntimeException exception) {
-            // 不写入远端原始异常正文，避免泄漏认证或交易数据。
+            // 仅将服务商查询失败记为服务商不可用；本地数据库错误应继续抛出并写入应用日志。
             refunds.recordCheckFailure(id, "Airwallex 退款查询暂不可用：" + exception.getClass().getSimpleName());
+            return;
         }
+
+        if (providerRefund == null) {
+            stateService.markNeedsReview(id, "未查到退款记录，继续按服务商请求编号核实");
+            return;
+        }
+        stateService.applyProviderResult(id, providerRefund);
     }
 }

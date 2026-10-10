@@ -108,6 +108,8 @@ https://……trycloudflare.com/api/v1/webhooks/airwallex
 
 生产环境域名、HTTPS、正式 Webhook 配置和密钥部署步骤见[部署与资源准备说明](docs/operations/deployment.md)。
 
+若要把本机运行的支付后台和模拟星辙临时分享给甲方，按[本地开发版公网演示](docs/operations/local-public-demo.md)分别开放两个前端入口并配置临时返回地址；该方式仅用于沙盒体验。
+
 ## 星辙正式对接准备
 
 本地模拟器使用的[星辙付款与结果通知接口约定](docs/architecture/integration/xingzhe-payment-contract.md)已经由支付项目实现，供星辙讨论和联调；它尚未获得星辙正式确认。生产环境需要星辙提供实际通知地址、独立的付款/退款入站签名密钥、出站签名密钥和业务订单接口资料。当前代码的生产配置要求 `STARTRAIL_INBOUND_SECRET`、`STARTRAIL_REFUND_INBOUND_SECRET`、`STARTRAIL_OUTBOUND_SECRET` 与 `STARTRAIL_PAYMENT_NOTIFICATION_URL`，以及 `PAYMENT_CHECKOUT_PUBLIC_BASE_URL`、`STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE`，并拒绝不合规的通知、付款入口和业务返回配置。正式环境不读取根目录开发 `.env`，也不会启用模拟星辙接口。
@@ -130,10 +132,10 @@ pnpm lint:web
 
 ## 付款入口与恢复配置
 
-本地 `.env.example` 提供 `PAYMENT_CHECKOUT_PUBLIC_BASE_URL=http://localhost:5173` 与 `STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE=http://localhost:5175/mock-xingzhe/order/{businessOrderId}`；后端本地默认值也使用模拟星辙的 5175 端口。付款完成后应返回对应的模拟星辙订单页。若已有 `.env` 覆盖业务返回地址，需同步改为 5175。Payment Intent 创建时会固定返回地址；修改配置并重启后端后，新创建的支付单使用新地址，旧支付单仍按创建时的地址返回。
+本地 `.env.example` 提供 `PAYMENT_CHECKOUT_PUBLIC_BASE_URL=http://localhost:5173` 与 `STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE=http://localhost:5175/mock-xingzhe/order/{businessOrderId}`；后端本地默认值也使用模拟星辙的 5175 端口。Airwallex.js 付款成功后先回支付项目的结果页，由服务端主动核实并通知星辙，再回到对应的模拟星辙订单页。若已有 `.env` 覆盖业务返回地址，需同步改为 5175。Payment Intent 创建时会固定星辙兜底返回地址；修改配置并重启后端后，新创建的支付单使用新地址，旧支付单仍按创建时的地址返回。
 
 生产时分别配置支付项目公开 HTTPS 地址和星辙真实订单页 HTTPS 模板，不能使用本地模拟页面。付款入口默认有效 15 分钟；过期后由星辙用原请求编号重新取得入口，不应重新建业务订单。支付是否成功、通知是否送达、服务是否开通分别记录。
 
-已有外部收款编号的未决支付单会由服务端补查：创建至少 60 秒后纳入，每轮最多 10 笔，默认每 60 秒执行一次，失败逐笔退避至最多 15 分钟。补查不依赖用户停留页面，也不把超时当成付款失败；没有外部编号的创建请求继续使用原编号重试。
+已有外部收款编号的未决支付单会由服务端补查：创建至少 10 秒后纳入，每轮最多 10 笔，默认每 10 秒执行一次；服务商仍返回未决状态时也按 10 秒后再查。可通过 `PAYMENT_STATUS_REFRESH_POLL_DELAY_MS` 调整调度周期；网络错误等失败逐笔退避至最多 15 分钟。补查不依赖用户停留页面，也不把超时当成付款失败；没有外部编号的创建请求继续使用原编号重试。Webhook 是主要的主动通知通道，需保持本地 HTTPS 隧道运行，并在 Airwallex 沙盒订阅受支持的 Payment Intent 付款事件；Webhook 不可达时，结果页核实和后台补查负责恢复。此调整只涉及支付状态更新，不改变财务/结算核查周期。
 
 当前仍需补齐生产星辙协议、星辙确认的商户付款能力和实际付款/退款验收；银行卡未被指定为必选。构建通过不等同于资金链路完整验收。

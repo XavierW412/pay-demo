@@ -37,7 +37,7 @@ public class PaymentStatusVerificationService {
         var claimed = jdbcTemplate.update("""
                 UPDATE payment_order SET last_provider_refresh_at = now()
                 WHERE id = ? AND (last_provider_refresh_at IS NULL
-                    OR last_provider_refresh_at < now() - INTERVAL '15 seconds')
+                    OR last_provider_refresh_at < now() - INTERVAL '10 seconds')
                 """, order.id());
         if (claimed != 1) {
             return new PaymentStatusVerificationResult(

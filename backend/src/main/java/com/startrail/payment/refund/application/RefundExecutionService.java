@@ -163,7 +163,7 @@ public class RefundExecutionService {
         var status = mismatch == null ? "PENDING_OPERATOR_CONFIRMATION" : "BLOCKED";
         var refund = new RefundRecord(id, request.refundRequestId(), payment.id(),
                 request.businessOrderId(), request.amount(), request.currency(), request.reason(),
-                id.toString(), null, status, null, mismatch, now, now);
+                id.toString(), null, status, null, mismatch, null, now, now);
         refunds.insert(refund);
         return new Reservation(refund, true, mismatch);
     }

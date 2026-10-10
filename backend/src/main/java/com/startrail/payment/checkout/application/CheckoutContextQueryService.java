@@ -16,18 +16,21 @@ public class CheckoutContextQueryService {
     private final AirwallexPaymentIntentGateway paymentIntentGateway;
     private final AirwallexProperties airwallexProperties;
     private final TrustedCheckoutRedirectConfiguration redirectConfiguration;
+    private final CheckoutReturnTokenService returnTokenService;
 
     public CheckoutContextQueryService(
             CheckoutTokenService checkoutTokenService,
             PaymentOrderRepository paymentOrderRepository,
             AirwallexPaymentIntentGateway paymentIntentGateway,
             AirwallexProperties airwallexProperties,
-            TrustedCheckoutRedirectConfiguration redirectConfiguration) {
+            TrustedCheckoutRedirectConfiguration redirectConfiguration,
+            CheckoutReturnTokenService returnTokenService) {
         this.checkoutTokenService = checkoutTokenService;
         this.paymentOrderRepository = paymentOrderRepository;
         this.paymentIntentGateway = paymentIntentGateway;
         this.airwallexProperties = airwallexProperties;
         this.redirectConfiguration = redirectConfiguration;
+        this.returnTokenService = returnTokenService;
     }
 
     public CheckoutContextResponse getContext(String opaqueToken) {
@@ -44,12 +47,14 @@ public class CheckoutContextQueryService {
         if (providerIntent.clientSecret() == null || providerIntent.clientSecret().isBlank()) {
             throw new AirwallexPaymentIntentException("Airwallex Payment Intent 缺少托管收银台上下文");
         }
+        var returnToken = returnTokenService.issue(paymentOrder.id());
         return CheckoutContextResponse.from(
                 paymentOrder,
                 providerIntent.clientSecret(),
                 paymentOrder.shopperCountryCode(),
                 airwallexProperties.environment(),
-                redirectConfiguration.businessOrderUrl(paymentOrder.businessOrderId()));
+                redirectConfiguration.businessOrderUrl(paymentOrder.businessOrderId()),
+                redirectConfiguration.checkoutReturnUrl(returnToken));
     }
 
     private void verifyProviderOrder(

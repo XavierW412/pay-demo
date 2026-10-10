@@ -17,6 +17,7 @@ public record RefundRecord(
         String status,
         String providerStatus,
         String lastError,
+        Instant lastCheckedAt,
         Instant createdAt,
         Instant updatedAt) {
 }

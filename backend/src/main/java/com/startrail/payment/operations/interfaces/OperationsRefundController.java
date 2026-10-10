@@ -1,6 +1,7 @@
 package com.startrail.payment.operations.interfaces;
 
 import com.startrail.payment.operations.application.OperationsRefundQueryService;
+import com.startrail.payment.operations.application.OperationsRefundStatusQueryService;
 import com.startrail.payment.refund.application.RefundExecutionService;
 import com.startrail.payment.refund.interfaces.RefundResponse;
 import java.util.List;
@@ -18,11 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/operations")
 public class OperationsRefundController {
     private final OperationsRefundQueryService queryService;
+    private final OperationsRefundStatusQueryService statusQueryService;
     private final RefundExecutionService executionService;
 
     public OperationsRefundController(OperationsRefundQueryService queryService,
+            OperationsRefundStatusQueryService statusQueryService,
             RefundExecutionService executionService) {
         this.queryService = queryService;
+        this.statusQueryService = statusQueryService;
         this.executionService = executionService;
     }
 
@@ -36,5 +40,11 @@ public class OperationsRefundController {
     public RefundResponse confirm(Authentication authentication, @PathVariable UUID refundId) {
         var result = executionService.confirmAndSubmit(refundId, authentication.getName());
         return RefundResponse.from(result.refund());
+    }
+
+    @PostMapping("/refunds/{refundId}/refresh")
+    public OperationsRefundStatusQueryService.RefundStatusResult refresh(
+            Authentication authentication, @PathVariable UUID refundId) {
+        return statusQueryService.refresh(authentication.getName(), refundId);
     }
 }

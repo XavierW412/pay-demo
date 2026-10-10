@@ -38,6 +38,10 @@ public class TrustedCheckoutRedirectConfiguration {
         return publicBaseUrl + "/checkout/" + opaqueToken;
     }
 
+    public String checkoutReturnUrl(String opaqueToken) {
+        return publicBaseUrl + "/checkout/return/" + opaqueToken;
+    }
+
     public String businessOrderUrl(String businessOrderId) {
         if (businessOrderId == null || businessOrderId.isBlank()
                 || businessOrderId.equals(".") || businessOrderId.equals("..")) {

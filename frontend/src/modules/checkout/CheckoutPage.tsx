@@ -58,7 +58,7 @@ export function CheckoutPage() {
           client_secret: context.clientSecret,
           currency: context.currency,
           ...(context.countryCode ? { country_code: context.countryCode } : {}),
-          successUrl: context.businessReturnUrl,
+          successUrl: context.returnPageUrl,
         }
         const result = payments.redirectToCheckout(checkoutOptions)
         if (typeof result === 'string') {

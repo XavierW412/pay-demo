@@ -59,23 +59,22 @@ public class OperatorInvitationService {
         }
         var invitation = jdbcTemplate.query("""
                 UPDATE operator_invitation SET used_at = now()
-                WHERE token_hash = ? AND used_at IS NULL AND expires_at > now()
+                WHERE token_hash = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
                 RETURNING issued_by
                 """, (rs, rowNum) -> rs.getObject("issued_by", UUID.class), hash(token))
                 .stream().findFirst().orElseThrow(() -> new InvalidOperatorRequestException("邀请链接无效或已过期"));
+        var accountId = UUID.randomUUID();
         try {
             jdbcTemplate.update("""
                     INSERT INTO operator_account(id, username, password_hash, role, active, created_at)
                     VALUES (?, ?, ?, 'STAFF_OPERATOR', true, ?)
-                    """, UUID.randomUUID(), normalized, passwordEncoder.encode(password),
+                    """, accountId, normalized, passwordEncoder.encode(password),
                     java.sql.Timestamp.from(Instant.now()));
         } catch (DuplicateKeyException exception) {
             throw new InvalidOperatorRequestException("用户名已被使用");
         }
-        jdbcTemplate.update("""
-                INSERT INTO operator_audit(actor_id, action, outcome, detail, created_at)
-                VALUES (?, 'REGISTER_OPERATOR', 'SUCCEEDED', ?, ?)
-                """, invitation, "员工注册：" + normalized, java.sql.Timestamp.from(Instant.now()));
+        auditService.record(normalized, null, "REGISTER_OPERATOR", "SUCCEEDED",
+                "员工完成账号注册；邀请人账号编号：" + invitation);
     }
 
     private String hash(String token) {

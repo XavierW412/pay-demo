@@ -56,23 +56,26 @@ public class OperationsFinanceOverviewQueryService {
                 GROUP BY currency
                 """, (rs, row) -> Map.entry(rs.getString("currency"),
                 new AmountSummary(rs.getBigDecimal("succeeded_amount"), rs.getLong("succeeded_count"))),
-                start, end).stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                java.sql.Timestamp.from(start), java.sql.Timestamp.from(end))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private Map<String, RefundSummary> refundAmounts(Instant start, Instant end) {
         return jdbcTemplate.query("""
-                SELECT currency,
-                       COALESCE(SUM(amount) FILTER (WHERE status = 'PENDING_OPERATOR_CONFIRMATION'), 0) AS awaiting_amount,
-                       COALESCE(SUM(amount) FILTER (WHERE status IN ('SUBMITTING', 'RECEIVED', 'ACCEPTED', 'NEEDS_REVIEW')), 0) AS processing_amount,
-                       COALESCE(SUM(amount) FILTER (WHERE status = 'SUCCEEDED'), 0) AS succeeded_amount,
-                       COUNT(*) FILTER (WHERE status IN ('BLOCKED', 'NEEDS_REVIEW')) AS blocked_count
-                FROM refund_order
-                WHERE created_at >= ? AND created_at < ?
-                GROUP BY currency
+                SELECT r.currency,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'PENDING_OPERATOR_CONFIRMATION'), 0) AS awaiting_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status IN ('SUBMITTING', 'RECEIVED', 'ACCEPTED', 'NEEDS_REVIEW')), 0) AS processing_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'SUCCEEDED'), 0) AS succeeded_amount,
+                       COUNT(*) FILTER (WHERE r.status IN ('BLOCKED', 'NEEDS_REVIEW')) AS blocked_count
+                FROM refund_order r
+                JOIN payment_order p ON p.id = r.payment_order_id
+                WHERE p.payment_provider = 'AIRWALLEX' AND r.created_at >= ? AND r.created_at < ?
+                GROUP BY r.currency
                 """, (rs, row) -> Map.entry(rs.getString("currency"),
                 new RefundSummary(rs.getBigDecimal("awaiting_amount"), rs.getBigDecimal("processing_amount"),
                         rs.getBigDecimal("succeeded_amount"), rs.getLong("blocked_count"))),
-                start, end).stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                java.sql.Timestamp.from(start), java.sql.Timestamp.from(end))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private Map<String, Long> paymentExceptions(Instant start, Instant end) {
@@ -86,16 +89,21 @@ public class OperationsFinanceOverviewQueryService {
                 WHERE p.payment_provider = 'AIRWALLEX' AND p.created_at >= ? AND p.created_at < ?
                 GROUP BY p.currency
                 """, (rs, row) -> Map.entry(rs.getString("currency"), rs.getLong("exception_count")),
-                start, end).stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                java.sql.Timestamp.from(start), java.sql.Timestamp.from(end))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private Map<String, Long> refundExceptions(Instant start, Instant end) {
         return jdbcTemplate.query("""
-                SELECT currency, COUNT(*) AS exception_count FROM refund_order
-                WHERE status IN ('BLOCKED', 'NEEDS_REVIEW') AND created_at >= ? AND created_at < ?
-                GROUP BY currency
+                SELECT r.currency, COUNT(*) AS exception_count
+                FROM refund_order r
+                JOIN payment_order p ON p.id = r.payment_order_id
+                WHERE p.payment_provider = 'AIRWALLEX' AND r.status IN ('BLOCKED', 'NEEDS_REVIEW')
+                  AND r.created_at >= ? AND r.created_at < ?
+                GROUP BY r.currency
                 """, (rs, row) -> Map.entry(rs.getString("currency"), rs.getLong("exception_count")),
-                start, end).stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                java.sql.Timestamp.from(start), java.sql.Timestamp.from(end))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private record AmountSummary(BigDecimal amount, long count) {

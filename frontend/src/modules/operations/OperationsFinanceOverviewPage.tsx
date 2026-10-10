@@ -63,17 +63,17 @@ function CurrencyPanel({ summary }: { summary: FinanceCurrencySummary }) {
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">支付成功金额</p>
         <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.paymentSucceededAmount, summary.currency)}</p>
-        <p className="mt-2 text-xs text-muted-foreground">{summary.paymentSucceededCount} 笔 · 已核实支付成功，不代表结算</p>
+        <p className="mt-2 text-xs text-muted-foreground">{summary.paymentSucceededCount} 笔 · 按支付单创建日期筛选当前成功状态，不代表结算</p>
       </div>
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">待处理退款金额</p>
         <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(inFlightRefundAmount, summary.currency)}</p>
-        <p className="mt-2 text-xs text-muted-foreground">待管理员确认 {formatMoney(summary.refundAwaitingConfirmationAmount, summary.currency)} · 提交/处理中 {formatMoney(summary.refundProcessingAmount, summary.currency)}</p>
+        <p className="mt-2 text-xs text-muted-foreground">按退款指令创建日期筛选当前待确认、处理中状态</p>
       </div>
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">退款执行成功</p>
         <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.refundSucceededAmount, summary.currency)}</p>
-        <p className="mt-2 text-xs text-muted-foreground">按支付项目退款状态统计，结算抵扣待报表核对</p>
+        <p className="mt-2 text-xs text-muted-foreground">按退款指令创建日期筛选当前成功状态；结算抵扣待报表核对</p>
       </div>
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">需要关注</p>
@@ -109,7 +109,7 @@ export function OperationsFinanceOverviewPage() {
       <div>
         <p className="text-xs font-semibold tracking-[0.16em] text-primary">FINANCE OVERVIEW</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">资金总览</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">按币种查看支付、退款和异常记录。支付成功、退款执行和资金结算是不同状态，分别展示。</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">按订单创建日期查看支付与退款目前的状态，并分币种汇总。支付成功、退款执行和资金结算分别展示。</p>
       </div>
       <form className="flex flex-wrap items-end gap-3" onSubmit={submitRange}>
         <label className="grid gap-1.5 text-xs text-muted-foreground">开始日期
@@ -128,7 +128,7 @@ export function OperationsFinanceOverviewPage() {
     </div>
 
     <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label="支付成功笔数" value={overview.data?.currencies.reduce((total, item) => total + item.paymentSucceededCount, 0).toLocaleString('zh-CN') ?? '—'} detail={`${range.from} 至 ${range.to} · 仅统计 Airwallex 支付单`} icon={ArrowDownLeft} />
+      <Metric label="目前支付成功笔数" value={overview.data?.currencies.reduce((total, item) => total + item.paymentSucceededCount, 0).toLocaleString('zh-CN') ?? '—'} detail={`${range.from} 至 ${range.to} 创建的 Airwallex 支付单中，当前成功的订单`} icon={ArrowDownLeft} />
       <Metric label="结算报告接入状态" value="待接入" detail="实际结算金额与手续费等待 Airwallex 报告数据" icon={WalletCards} tone="warning" />
       <Metric label="支付核查差异" value={overview.data?.currencies.reduce((total, item) => total + item.paymentExceptionCount, 0).toLocaleString('zh-CN') ?? '—'} detail="每笔交易只按最近一次核查结果统计" icon={RefreshCw} tone="warning" />
       <Metric label="退款拦截或待核实" value={overview.data?.currencies.reduce((total, item) => total + item.refundExceptionCount, 0).toLocaleString('zh-CN') ?? '—'} detail="需员工查看记录并按既定流程处理" icon={AlertTriangle} tone="warning" />

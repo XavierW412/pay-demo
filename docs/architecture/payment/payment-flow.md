@@ -20,11 +20,11 @@
 1. 本地模拟星辙先保存业务订单与请求编号，再经带 HMAC 签名的 HTTP 请求调用 `POST /api/v1/integration/payment-orders`，并传递金额、币种和可选的 `shopperCountryCode`。本地 CNY 示例显式配置 `CN`，USD 示例显式配置 `US`；这不是生产币种到国家/地区的推导规则。
 2. 支付服务验证时间戳、随机数和原始 JSON 签名，校验金额/币种/国家地区字段，按 `requestId` 与 `businessOrderId` 幂等保存支付单快照。
 3. 支付服务使用服务端 Client ID/API Key 获取访问令牌，再调用 `POST /api/v1/pa/payment_intents/create`。请求映射金额、币种、`merchant_order_id` 和 `request_id`。
-4. 内部 API 返回可信公开域名下的绝对 checkout 地址。浏览器通过短期不透明令牌读取付款上下文，再调用 `payments.redirectToCheckout` 打开托管收银台。Client ID/API Key 不发给浏览器；`client_secret` 仅从 Airwallex 服务端查询后短暂返回付款页面。
+4. 内部 API 返回可信公开域名下的绝对 checkout 地址。浏览器通过短期不透明令牌读取付款上下文，再调用 `payments.redirectToCheckout` 打开托管收银台；上下文另含支付服务生成的 `returnPageUrl`。Client ID/API Key 不发给浏览器；`client_secret` 仅从 Airwallex 服务端查询后短暂返回付款页面。
 5. Airwallex Webhook 使用原始请求体、`x-timestamp`、`x-signature` 和 Webhook secret 做 HMAC-SHA256 校验。时间戳按毫秒解析，验签在 JSON 解析前执行。
 6. 验签通过后按 Airwallex 事件 `id` 唯一落库并快速返回 HTTP 200。后台处理器查询 `GET /api/v1/pa/payment_intents/{id}` 当前状态，并验证 Payment Intent ID、业务订单号、金额、币种与内部支付单关联。
 7. 只有服务端读取并核实的状态才更新内部支付单。支付状态通知写入 outbox，由后台任务签名发送；本地模拟星辙按事件编号去重，只在状态为 `SUCCEEDED` 时模拟开通服务。
-8. 付款结果页按短期令牌读取内部状态，并可触发限频的服务端主动查询。主动查询与 Webhook 使用相同订单字段核验及行锁；仅状态改变时写入通知 outbox，避免同一次状态变化重复通知。
+8. Airwallex.js 的 `successUrl` 指向支付服务的结果页。页面以独立 24 小时返回令牌读取服务端状态和可信星辙订单地址，再请求支付服务主动核实；核实完成后尽快返回星辙。浏览器返回本身不代表付款成功。主动查询与 Webhook 使用相同订单字段核验及行锁；仅状态改变时写入通知 outbox，避免同一次状态变化重复通知。返回令牌不能读取付款上下文或 `client_secret`。
 
 ## 3. 状态、事件和数据库
 
@@ -32,13 +32,14 @@
 | --- | --- | --- |
 | `payment_order` | 星辙业务订单与支付服务订单、Airwallex Payment Intent 的关联和当前支付状态 | 全环境 |
 | `checkout_access_token` | 短期付款上下文令牌的哈希和过期时间 | 全环境 |
+| `checkout_return_token` | 结果页专用令牌的哈希、支付单关联和过期时间；不具备读取 `client_secret` 的权限 | 全环境 |
 | `provider_webhook_event` | 验签后保留的事件最小字段（事件 ID、名称、Payment Intent ID）、处理状态、失败原因和下次重试时间；不持久化完整 Webhook 正文或 `client_secret` | 全环境 |
 | `notification_outbox` | 待发送星辙通知、投递状态、失败原因和重试时间 | 全环境 |
 | `payment_status_refresh_cursor` | 未决支付单后台补查的租约、下次查询时间和失败次数 | 全环境 |
 | `mock_xingzhe_order` | 本地示例商品和业务订单 | 仅 local |
 | `mock_xingzhe_payment_event` | 本地模拟星辙已接收的唯一支付事件 | 仅 local |
 
-`payment_order.shopper_country_code` 保存星辙传入的可选 ISO 两字母国家/地区代码；旧订单和未提供该值的新订单保留为空。`payment_order.last_provider_refresh_at` 用于限制公开付款令牌的主动查询频率；`payment_order.provider` 区分 Airwallex 和本地模拟来源。迁移全局单调递增：公共 `V1`—`V4`、`V102`—`V108`、`V110`、`V111`；本地专属 `V100`、`V101`、`V109`、`V112`、`V113`。本地订单历史迁移 `V113` 和公共迁移共用 Flyway 版本序列，后续公共迁移从 `V114` 开始，不能重用序号。生产只加载公共迁移，不装配模拟器。
+`payment_order.shopper_country_code` 保存星辙传入的可选 ISO 两字母国家/地区代码；旧订单和未提供该值的新订单保留为空。`payment_order.last_provider_refresh_at` 用于限制公开付款令牌的主动查询频率；`payment_order.provider` 区分 Airwallex 和本地模拟来源。迁移全局单调递增：公共迁移已到 `V119`，本地专属迁移与公共迁移共用 Flyway 版本序列；新增迁移从 `V120` 顺延，不能重用序号。生产只加载公共迁移，不装配模拟器。
 
 内部状态为 `CREATING`、`AWAITING_PAYMENT`、`PROCESSING`、`SUCCEEDED`、`CANCELLED`、`FAILED`、`REQUIRES_REVIEW`。暂未映射或账户资料未确认的 Airwallex 状态进入待核实，不擅自标记成功。付款成功不代表已结算；结算核对在后续阶段处理。
 
@@ -66,11 +67,11 @@
 - 通知时间比较使用带时区的数据库时间，并以支付事件历史判断新旧顺序；不能使用业务订单 `updated_at`，因为重复获取付款入口也会更新该字段。
 - 订单标识、Payment Intent、金额或币种不匹配：不通知业务成功，保留异常以待后续运营核查。
 - 浏览器直接返回：不修改任何支付状态。
-- 付款结果页主动查询：每个支付单最短间隔 15 秒；查询失败保留既有状态，不能把组件事件解释为成功。
+- 付款结果页主动查询：每个支付单最短间隔 10 秒；查询失败保留既有状态，不能把组件事件解释为成功。
 
 ### 托管跳转与付款方式边界
 
-`CheckoutPage` 查询短期上下文，再以已锁定 Components SDK 初始化 `payments` 并调用托管跳转。成功返回地址来自可信星辙模板；Payment Intent 创建带同一受控 `return_url`。页面不展示自有卡片输入、方式选择和订单摘要。SDK 初始化失败或超时提供重试，不生成新订单或扣款，不判断支付结果。官方接口没有通用取消返回参数，取消时遵循托管页面行为或用户返回星辙查看原订单。
+`CheckoutPage` 查询短期上下文，再以已锁定 Components SDK 初始化 `payments` 并调用托管跳转。Airwallex.js 的 `successUrl` 使用服务端生成的支付服务结果页地址；Payment Intent 创建仍带受控星辙 `return_url`，供 SDK 未能应用 `successUrl` 时使用。页面不展示自有卡片输入、方式选择和订单摘要。SDK 初始化失败或超时提供重试，不生成新订单或扣款，不判断支付结果。官方接口没有通用取消返回参数，取消时遵循托管页面行为或用户返回星辙查看原订单。
 
 国家作为独立可选 `country_code`，未提供时省略；不硬编码付款方式。早期沙盒查询仅返回 `airwallex_pay`，该结果属于历史快照，后续账户配置已变化；可用方式应按实际账户和订单重新查询。方式开通属于商户账户配置。
 
@@ -78,9 +79,9 @@
 
 ### 后台补查与状态并发
 
-`PaymentStatusVerificationService` 根据内部支付单查询服务商，使用数据库 15 秒原子限频；运营操作、短期令牌适配和后台补查复用它。网络请求在数据库事务外。`PaymentStatusApplicationService` 在一个事务中完成行锁、标识/金额/币种核验、状态变更和 outbox 写入。Webhook 也使用相同状态更新事务；成功和取消不被旧快照回退。FAILED 不冻结后续服务商核实成功的可能。
+`PaymentStatusVerificationService` 根据内部支付单查询服务商，使用数据库 10 秒原子限频；运营操作、返回令牌主动核实和后台补查复用它。网络请求在数据库事务外。`PaymentStatusApplicationService` 在一个事务中完成行锁、标识/金额/币种核验、状态变更和 outbox 写入。Webhook 也使用相同状态更新事务；成功和取消不被旧快照回退。FAILED 不冻结后续服务商核实成功的可能。
 
-`PaymentStatusRefreshScheduler` 默认每 60 秒发现与处理未决订单，每轮最多 10 笔。创建已至少 60 秒且有外部编号的 CREATING、AWAITING_PAYMENT、PROCESSING、REQUIRES_REVIEW 才纳入。`payment_status_refresh_cursor` 持久化下一查询时间、租约令牌、租约截止和失败次数；租约两分钟、条件领取，旧任务不能释放新任务租约。限频碰撞延后再查，单笔失败以 1、2、4、8、15 分钟退避，不阻塞其他记录。终态停止扫描。
+`PaymentStatusRefreshScheduler` 默认每 10 秒发现与处理未决订单，每轮最多 10 笔。创建已至少 10 秒且有外部编号的 CREATING、AWAITING_PAYMENT、PROCESSING、REQUIRES_REVIEW 才纳入；服务商查询仍未终结时，下一次查询默认安排在 10 秒后。`payment_status_refresh_cursor` 持久化下一查询时间、租约令牌、租约截止和失败次数；租约两分钟、条件领取，旧任务不能释放新任务租约。限频碰撞延后再查，单笔失败以 1、2、4、8、15 分钟退避，不阻塞其他记录。终态停止扫描。此调度只更新支付状态；财务与结算差异核查不随之提速。
 
 创建阶段尚无外部编号的订单不由此任务创建新收款；星辙以原请求编号重试，复用 Airwallex `request_id`。关联外部编号使用行锁，重试响应不能覆盖已核实的最新状态。差异核查模块仍只保存比对证据，不执行收退款。
 

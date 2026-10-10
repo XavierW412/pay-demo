@@ -26,7 +26,9 @@ startrail-payment/
     │   ├── transaction-list.md
     │   └── transaction-detail.md
     ├── architecture/
-    │   └── README.md
+    │   ├── README.md
+    │   └── integration/
+    │       └── payment-interface-contracts.md
     ├── superpowers/
     │   └── specs/                    # 跨模块架构设计与设计评审记录
     ├── engineering/
@@ -190,4 +192,4 @@ payment/
 5. 文件或目录改名后，更新本文件、根目录 AI 阅读入口和相关链接。
 6. 业务模块边界变化同步更新架构文档；依赖选型变化只更新技术栈清单。
 
-- `checkout/config/TrustedCheckoutRedirectConfiguration` 负责可信公开入口与星辙返回模板；`payment_status_refresh_cursor` 由公共 V110 迁移创建，下一迁移序号 V111。
+- `checkout/config/TrustedCheckoutRedirectConfiguration` 负责可信公开入口与星辙返回模板；公共迁移当前已到 V118，新增迁移从 V119 顺延。

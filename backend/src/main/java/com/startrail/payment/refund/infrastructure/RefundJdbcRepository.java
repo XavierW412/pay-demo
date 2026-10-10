@@ -17,7 +17,7 @@ public class RefundJdbcRepository {
     private static final String COLUMNS = """
             id, refund_request_id, payment_order_id, business_order_id, amount, currency,
             reason, provider_request_id, provider_refund_id, status, provider_status, last_error,
-            created_at, updated_at
+            last_checked_at, created_at, updated_at
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -66,7 +66,7 @@ public class RefundJdbcRepository {
                     next_check_at, last_error, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0,
                     CASE WHEN ? IN ('SUBMITTING', 'RECEIVED', 'ACCEPTED', 'NEEDS_REVIEW')
-                        THEN ? ELSE NULL END,
+                        THEN CAST(? AS TIMESTAMPTZ) ELSE NULL END,
                     ?, ?, ?)
                 """, refund.id(), refund.refundRequestId(), refund.paymentOrderId(),
                 refund.businessOrderId(), refund.amount(), refund.currency(), refund.reason(),
@@ -95,17 +95,18 @@ public class RefundJdbcRepository {
         jdbcTemplate.update("""
                 UPDATE refund_order SET provider_refund_id = COALESCE(provider_refund_id, ?),
                     status = ?, provider_status = ?, updated_at = ?, last_error = NULL,
+                    last_checked_at = ?,
                     next_check_at = CASE WHEN ? IN ('SUCCEEDED', 'FAILED') THEN NULL
-                        ELSE ? END
+                        ELSE CAST(? AS TIMESTAMPTZ) END
                 WHERE id = ?
-                """, providerRefundId, status, providerStatus, Timestamp.from(updatedAt),
+                """, providerRefundId, status, providerStatus, Timestamp.from(updatedAt), Timestamp.from(updatedAt),
                 status, Timestamp.from(updatedAt.plusSeconds(60)), id);
     }
 
     public void markNeedsReview(UUID id, String message) {
         jdbcTemplate.update("""
                 UPDATE refund_order SET status = 'NEEDS_REVIEW', last_error = ?, updated_at = now(),
-                    next_check_at = now() + INTERVAL '5 minutes' WHERE id = ?
+                    last_checked_at = now(), next_check_at = now() + INTERVAL '5 minutes' WHERE id = ?
                 """, message, id);
     }
 
@@ -127,7 +128,7 @@ public class RefundJdbcRepository {
     }
 
     public void recordCheckFailure(UUID id, String message) {
-        jdbcTemplate.update("UPDATE refund_order SET last_error = ?, updated_at = now() WHERE id = ?",
+        jdbcTemplate.update("UPDATE refund_order SET last_error = ?, last_checked_at = now() WHERE id = ?",
                 message, id);
     }
 
@@ -152,6 +153,7 @@ public class RefundJdbcRepository {
                 rs.getString("provider_request_id"), rs.getString("provider_refund_id"),
                 rs.getString("status"), rs.getString("provider_status"),
                 rs.getString("last_error"),
+                rs.getTimestamp("last_checked_at") == null ? null : rs.getTimestamp("last_checked_at").toInstant(),
                 rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
     }
 }
