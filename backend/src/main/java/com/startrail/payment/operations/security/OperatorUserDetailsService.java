@@ -20,12 +20,14 @@ public class OperatorUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         var normalized = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
         return jdbcTemplate.query("""
-                SELECT username, password_hash, role, active FROM operator_account
+                SELECT username, password_hash, role, active,
+                       COALESCE(expires_at > CURRENT_TIMESTAMP, true) AS not_expired
+                FROM operator_account
                 WHERE username = ?
                 """, (rs, rowNum) -> User.withUsername(rs.getString("username"))
                 .password(rs.getString("password_hash"))
                 .authorities("ROLE_" + rs.getString("role"))
-                .disabled(!rs.getBoolean("active"))
+                .disabled(!rs.getBoolean("active") || !rs.getBoolean("not_expired"))
                 .build(), normalized).stream().findFirst()
                 .orElseThrow(() -> new UsernameNotFoundException("运营账号不存在"));
     }

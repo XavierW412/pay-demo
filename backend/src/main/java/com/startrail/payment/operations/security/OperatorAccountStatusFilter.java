@@ -42,22 +42,33 @@ public class OperatorAccountStatusFilter extends OncePerRequestFilter {
             return;
         }
 
-        boolean active;
+        AccountState accountState;
         try {
-            active = jdbcTemplate.query("SELECT active FROM operator_account WHERE username = ?",
-                    (rs, rowNum) -> rs.getBoolean("active"), authentication.getName())
-                    .stream().findFirst().orElse(false);
+            accountState = jdbcTemplate.query("""
+                    SELECT active,
+                           expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP AS expired
+                    FROM operator_account WHERE username = ?
+                    """, (rs, rowNum) -> new AccountState(rs.getBoolean("active"), rs.getBoolean("expired")),
+                    authentication.getName()).stream().findFirst().orElse(new AccountState(false, false));
         } catch (DataAccessException exception) {
             writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "OPERATOR_STATUS_UNAVAILABLE", "暂时无法核实运营账号状态，请稍后重试");
             return;
         }
-        if (!active) {
+        if (!accountState.active()) {
             SecurityContextHolder.clearContext();
             var session = request.getSession(false);
             if (session != null) session.invalidate();
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                     "OPERATOR_ACCOUNT_DISABLED", "运营账号已停用，请重新登录");
+            return;
+        }
+        if (accountState.expired()) {
+            SecurityContextHolder.clearContext();
+            var session = request.getSession(false);
+            if (session != null) session.invalidate();
+            writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                    "OPERATOR_ACCOUNT_EXPIRED", "临时运营账号已过期，请联系管理员重新生成");
             return;
         }
         chain.doFilter(request, response);
@@ -68,4 +79,6 @@ public class OperatorAccountStatusFilter extends OncePerRequestFilter {
         response.setContentType("application/json;charset=UTF-8");
         objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse(code, message, Instant.now()));
     }
+
+    private record AccountState(boolean active, boolean expired) {}
 }

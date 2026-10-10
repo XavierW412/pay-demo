@@ -1,12 +1,16 @@
 package com.startrail.payment.operations.interfaces;
 
 import com.startrail.payment.operations.application.OperationsTeamService;
+import com.startrail.payment.operations.application.TemporaryOperatorAccountService;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +22,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/operations/team")
 public class OperationsTeamController {
     private final OperationsTeamService teamService;
+    private final TemporaryOperatorAccountService temporaryOperatorAccountService;
 
-    public OperationsTeamController(OperationsTeamService teamService) {
+    public OperationsTeamController(
+            OperationsTeamService teamService,
+            TemporaryOperatorAccountService temporaryOperatorAccountService) {
         this.teamService = teamService;
+        this.temporaryOperatorAccountService = temporaryOperatorAccountService;
     }
 
     @GetMapping("/accounts")
@@ -49,6 +57,15 @@ public class OperationsTeamController {
             @PathVariable UUID accountId,
             @RequestBody ActiveRequest request) {
         return teamService.setAccountActive(authentication.getName(), accountId, request.active());
+    }
+
+    @PostMapping("/temporary-accounts")
+    public ResponseEntity<TemporaryOperatorAccountService.TemporaryOperatorCredentials> createTemporaryAccount(
+            Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .cacheControl(CacheControl.noStore())
+                .header("Pragma", "no-cache")
+                .body(temporaryOperatorAccountService.create(authentication.getName()));
     }
 
     public record ActiveRequest(boolean active) {}

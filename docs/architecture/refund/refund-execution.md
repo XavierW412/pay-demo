@@ -2,7 +2,7 @@
 
 ## 边界与契约状态
 
-星辙负责退款申请、审批、部分退款顺序及用户政策。本模块只接收星辙已批准的指令。支付项目核对签名、原支付和金额后先记录指令；核对异常标记为 `BLOCKED` 并通知星辙，核对通过则标记 `PENDING_OPERATOR_CONFIRMATION`。只有支付后台 `STAFF_ADMIN` 确认后才调用 Airwallex。其他角色只能查看；任何人都不能手工把退款标为成功。
+星辙负责退款申请、审批、部分退款顺序及用户政策。本模块只接收星辙已批准的指令。支付项目核对签名、原支付和金额后先记录指令；核对异常标记为 `BLOCKED` 并通知星辙，核对通过则标记 `PENDING_OPERATOR_CONFIRMATION`。支付后台 `STAFF_ADMIN` 可确认后调用 Airwallex；仅在本地沙盒联调环境，六小时有效的 `TEMP_TESTER` 也可执行该确认。两种角色都不能绕过星辙批准、支付核验或金额核对。其他角色只能查看；任何人都不能手工把退款标为成功。
 
 以下星辙入站与出站字段均为**提议契约，待星辙确认**。当前可用于本地模拟，不代表真实星辙已接入。Airwallex 接口字段和状态依据[官方退款接口](https://www.airwallex.com/docs/api/payments/refunds)及[官方 API 变更记录](https://www.airwallex.com/docs/api/2022-09-09/changelog)。星辙商户账户是否开放退款、具体币种与方式仍需该账户在沙盒和生产分别核实。
 

@@ -78,7 +78,7 @@ export function OperationsLayout() {
             <span className="grid size-9 place-items-center rounded-xl bg-white/15 text-lg font-semibold">星</span>
             <span><strong className="block text-sm font-semibold">星辙支付</strong><small className="text-xs text-white/65">运营中心</small></span>
           </Link>
-          <span className="rounded-full border border-white/25 px-2 py-1 text-[11px] text-white/75 lg:hidden">{session.role === 'OWNER_READONLY' ? '只读' : '员工'}</span>
+          <span className="rounded-full border border-white/25 px-2 py-1 text-[11px] text-white/75 lg:hidden">{session.role === 'OWNER_READONLY' ? '只读' : session.role === 'TEMP_TESTER' ? '临时测试' : '员工'}</span>
         </div>
         <nav className="mt-6 flex gap-2 overflow-x-auto lg:mt-12 lg:flex-col" aria-label="运营导航">
           {navigation.map(({ to, label, icon: Icon }) => (

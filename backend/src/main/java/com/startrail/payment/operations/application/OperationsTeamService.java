@@ -30,10 +30,11 @@ public class OperationsTeamService {
         validatePage(page, size);
         var total = count("SELECT count(*) FROM operator_account");
         var items = jdbcTemplate.query("""
-                SELECT id, username, role, active, created_at
+                SELECT id, username, role, active, created_at, expires_at
                 FROM operator_account ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?
                 """, (rs, rowNum) -> new AccountRow(rs.getObject("id", UUID.class), rs.getString("username"),
-                rs.getString("role"), rs.getBoolean("active"), rs.getTimestamp("created_at").toInstant()),
+                rs.getString("role"), rs.getBoolean("active"), rs.getTimestamp("created_at").toInstant(),
+                instant(rs.getTimestamp("expires_at"))),
                 size, (long) page * size);
         return new TeamPage<>(items, page, size, total);
     }
@@ -99,27 +100,34 @@ public class OperationsTeamService {
                 }
 
                 var target = jdbcTemplate.query("""
-                        SELECT id, username, role, active, created_at
+                        SELECT id, username, role, active, created_at, expires_at
                         FROM operator_account WHERE id = ? FOR UPDATE
                         """, (rs, rowNum) -> new AccountRow(rs.getObject("id", UUID.class),
                         rs.getString("username"), rs.getString("role"), rs.getBoolean("active"),
-                        rs.getTimestamp("created_at").toInstant()), accountId)
+                        rs.getTimestamp("created_at").toInstant(), instant(rs.getTimestamp("expires_at"))), accountId)
                         .stream().findFirst()
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "员工账号不存在"));
                 if (target.username().equalsIgnoreCase(actor)) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "不能停用或恢复当前登录账号");
                 }
-                if (!"STAFF_OPERATOR".equals(target.role())) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员只能管理普通员工账号");
+                if (!"STAFF_OPERATOR".equals(target.role()) && !"TEMP_TESTER".equals(target.role())) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员只能管理普通员工或临时测试账号");
+                }
+                if ("TEMP_TESTER".equals(target.role()) && active) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "临时测试账号不能恢复启用，请重新生成账号");
                 }
                 if (target.active() == active) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             active ? "该员工账号已经启用" : "该员工账号已经停用");
                 }
                 jdbcTemplate.update("UPDATE operator_account SET active = ? WHERE id = ?", active, accountId);
-                auditService.record(actorUsername, null, action, "SUCCEEDED",
-                        (active ? "恢复员工账号：" : "停用员工账号：") + target.username());
-                return new AccountRow(target.id(), target.username(), target.role(), active, target.createdAt());
+                var targetAction = "TEMP_TESTER".equals(target.role())
+                        ? "DISABLE_TEMP_OPERATOR"
+                        : action;
+                auditService.record(actorUsername, null, targetAction, "SUCCEEDED",
+                        (active ? "恢复员工账号：" : "停用账号：") + target.username());
+                return new AccountRow(target.id(), target.username(), target.role(), active,
+                        target.createdAt(), target.expiresAt());
             });
         } catch (ResponseStatusException exception) {
             recordRejected(actorUsername, action,
@@ -177,7 +185,8 @@ public class OperationsTeamService {
         if (page < 0 || size < 1 || size > 100) throw new InvalidOperatorRequestException("分页参数无效");
     }
 
-    public record AccountRow(UUID id, String username, String role, boolean active, Instant createdAt) {}
+    public record AccountRow(UUID id, String username, String role, boolean active, Instant createdAt,
+            Instant expiresAt) {}
 
     public record InvitationRow(UUID id, String issuedBy, String status, Instant expiresAt,
             Instant usedAt, Instant revokedAt, Instant createdAt) {}

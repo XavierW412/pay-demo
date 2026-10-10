@@ -2,7 +2,7 @@
 
 ## 产品边界
 
-运营后台读取支付项目记录，首页为只读资金总览并区分支付成功、退款执行、结算报告和异常状态。员工能核实 Airwallex 状态、重试失败通知、添加异常备注；`STAFF_ADMIN` 还可确认已核对通过的退款并提交 Airwallex。所有写操作验证角色并写审计。项目所有者账号可看全部记录和员工操作，服务端拒绝其所有写操作。后台不提供手工改成支付成功、业务退款审批、模拟付款或测试交易的入口。
+运营后台读取支付项目记录，首页为只读资金总览并区分支付成功、退款执行、结算报告和异常状态。员工能核实 Airwallex 状态、重试失败通知、添加异常备注；`STAFF_ADMIN` 还可确认已核对通过的退款并提交 Airwallex。仅在本地沙盒环境，六小时临时测试员也有相同的运营处理权限。所有写操作验证角色并写审计。项目所有者账号可看全部记录和员工操作，服务端拒绝其所有写操作。后台不提供手工改成支付成功、业务退款审批、模拟付款或测试交易的入口。
 
 星辙正式员工身份系统尚未提供。本项目先用独立账号：配置引导一名星辙员工管理员和一名所有者；员工管理员创建一次性邀请链接，员工自行设置账号密码。邀请链接由管理员自行交付，软件不擅自发送消息。正式接入后可适配星辙身份源。
 
@@ -12,6 +12,7 @@
 - `OWNER_READONLY`：可查询所有交易和审计，不可触发刷新、重试、备注、邀请或退款。
 - `STAFF_ADMIN`：员工操作、查询、邀请，以及确认已通过支付核对的退款执行。
 - `STAFF_OPERATOR`：员工操作和查询，不可邀请或确认退款执行。
+- `TEMP_TESTER`：甲方临时测试账号，6 小时到期；可执行与员工管理员相同的运营动作，包括确认已获星辙批准且支付侧核验通过的退款，但不能邀请、撤销邀请、管理员工账号或生成其他临时账号。创建仅允许在 `local` 配置且 Airwallex 指向沙盒时进行；密码只在成功响应中返回一次，数据库仅存 BCrypt 摘要。
 - 生产会话 Cookie 使用 Secure、HttpOnly、SameSite=Lax，必须同站 HTTPS 部署。开发环境允许本机 HTTP。
 
 ## 交易与操作
@@ -44,9 +45,10 @@ Flyway 创建运营账号、邀请、备注和审计表。启动时按环境变�
 - `GET /api/v1/operations/exceptions?type&page&size`：`type` 仅允许 `REFUND_CONFIRMATION`、`REFUND_REVIEW`、`PAYMENT_DIFFERENCE`、`NOTIFICATION_FAILURE`；返回服务端分页及精确关联编号。所有资金相关队列排除 `LOCAL_SIMULATOR`。
 - `GET /api/v1/operations/transactions?query&status&currency&provider&refundStatus&notificationStatus&from&to&page&size`：后端白名单校验筛选值，按创建时间和支付单 UUID 稳定排序；搜索可匹配业务订单号、本项目支付单、Payment Intent 和关联退款编号。日期按 `Asia/Shanghai`，最多 93 天。
 - `GET /api/v1/operations/audit?from&to&actor&action&outcome&businessOrderId&paymentOrderId&page&size`：只读服务端分页审计；员工/邀请动作可以没有支付单关联。保留旧 `limit` 参数作为过渡兼容。
-- `GET /api/v1/operations/team/accounts?page&size`、`GET /api/v1/operations/team/invitations?page&size`：员工与邀请目录。邀请响应不含一次性令牌及其摘要。
+- `GET /api/v1/operations/team/accounts?page&size`、`GET /api/v1/operations/team/invitations?page&size`：员工与邀请目录。账号响应含 `expiresAt`（永久账号为 `null`），不含密码。邀请响应不含一次性令牌及其摘要。
+- `POST /api/v1/operations/team/temporary-accounts`：仅 `STAFF_ADMIN` 在本地沙盒环境可调用；无请求体，生成固定 6 小时的 `TEMP_TESTER`。成功响应一次性包含 `accountId`、`username`、`initialPassword`、`role`、`expiresAt`；不要记录、持久化或通过日志转发 `initialPassword`。
 - `DELETE /api/v1/operations/team/invitations/{invitationId}`：只撤销尚未使用且未过期的邀请。
-- `PATCH /api/v1/operations/team/accounts/{accountId}/active`：请求体为 `{ "active": true|false }`；只允许员工管理员管理普通员工。停用后，服务端在每个运营请求中重新检查账号状态并注销停用账号会话。
+- `PATCH /api/v1/operations/team/accounts/{accountId}/active`：请求体为 `{ "active": true|false }`；仅员工管理员可停用或恢复普通员工，或提前停用临时测试账号。临时账号停用后不能恢复，需重新生成；服务端在每个运营请求中重新检查状态与到期时间，并注销停用或过期会话。过期账号保留记录供审计。
 
 ### 退款即时核实
 

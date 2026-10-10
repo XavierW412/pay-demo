@@ -48,7 +48,7 @@ export function OperationsTransactionDetailPage() {
   const transaction = detail.data?.transaction
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? '/operations/transactions'
   const canOperate = session.role !== 'OWNER_READONLY'
-  const canConfirmRefund = session.role === 'STAFF_ADMIN'
+  const canConfirmRefund = session.role === 'STAFF_ADMIN' || session.role === 'TEMP_TESTER'
 
   const reload = async () => {
     await queryClient.invalidateQueries({ queryKey: ['operations-transaction', paymentOrderId] })

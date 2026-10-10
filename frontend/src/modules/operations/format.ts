@@ -25,6 +25,8 @@ const auditActions: Record<string, string> = {
   INVITE_OPERATOR: '创建员工邀请',
   REVOKE_OPERATOR_INVITATION: '撤销员工邀请',
   DISABLE_OPERATOR: '停用员工账号',
+  DISABLE_TEMP_OPERATOR: '提前停用临时测试账号',
+  CREATE_TEMP_OPERATOR: '生成临时测试账号',
   RESTORE_OPERATOR: '恢复员工账号',
   REGISTER_OPERATOR: '注册员工账号',
   CHECK_PAYMENT_RECONCILIATION: '执行支付核查',
@@ -91,6 +93,7 @@ export const roleLabel = (role: OperatorRole): string => ({
   OWNER_READONLY: '项目所有者 · 只读',
   STAFF_ADMIN: '星辙员工管理员',
   STAFF_OPERATOR: '星辙运营员工',
+  TEMP_TESTER: '甲方临时测试员',
 })[role]
 
 export const formatMoney = (amount: string, currency: string): string => {

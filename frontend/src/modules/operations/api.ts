@@ -1,7 +1,7 @@
 import { apiClient } from '@/shared/api/client'
 import type { PaymentStatus } from '@/shared/api/contracts'
 
-export type OperatorRole = 'OWNER_READONLY' | 'STAFF_ADMIN' | 'STAFF_OPERATOR'
+export type OperatorRole = 'OWNER_READONLY' | 'STAFF_ADMIN' | 'STAFF_OPERATOR' | 'TEMP_TESTER'
 
 export interface OperatorSession {
   username: string
@@ -144,6 +144,15 @@ export interface OperatorAccount {
   role: OperatorRole
   active: boolean
   createdAt: string
+  expiresAt: string | null
+}
+
+export interface TemporaryOperatorCredentials {
+  accountId: string
+  username: string
+  initialPassword: string
+  role: 'TEMP_TESTER'
+  expiresAt: string
 }
 
 export interface OperatorInvitation {
@@ -325,6 +334,10 @@ export const getOperatorAccounts = async (page = 0, size = 20): Promise<Operatio
     params: { page, size },
   })
   return response.data
+}
+
+export const createTemporaryOperatorAccount = async (): Promise<TemporaryOperatorCredentials> => {
+  return postWithCsrf<TemporaryOperatorCredentials>('/api/v1/operations/team/temporary-accounts')
 }
 
 export const getOperatorInvitations = async (page = 0, size = 20): Promise<OperationsPage<OperatorInvitation>> => {

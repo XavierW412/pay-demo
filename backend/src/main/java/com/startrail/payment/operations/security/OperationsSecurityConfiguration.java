@@ -34,14 +34,16 @@ public class OperationsSecurityConfiguration {
                 .requestMatchers("/api/v1/operations/csrf", "/api/v1/operations/login",
                         "/api/v1/operations/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/operations/invitations").hasAuthority("ROLE_STAFF_ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/operations/team/temporary-accounts")
+                    .hasAuthority("ROLE_STAFF_ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/operations/team/invitations/**").hasAuthority("ROLE_STAFF_ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/operations/team/accounts/**").hasAuthority("ROLE_STAFF_ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/operations/refunds/*/confirm")
-                    .hasAuthority("ROLE_STAFF_ADMIN")
+                    .hasAnyAuthority("ROLE_STAFF_ADMIN", "ROLE_TEMP_TESTER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/operations/refunds/*/refresh")
-                    .hasAnyAuthority("ROLE_STAFF_ADMIN", "ROLE_STAFF_OPERATOR")
+                    .hasAnyAuthority("ROLE_STAFF_ADMIN", "ROLE_STAFF_OPERATOR", "ROLE_TEMP_TESTER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/operations/transactions/**")
-                    .hasAnyAuthority("ROLE_STAFF_ADMIN", "ROLE_STAFF_OPERATOR")
+                    .hasAnyAuthority("ROLE_STAFF_ADMIN", "ROLE_STAFF_OPERATOR", "ROLE_TEMP_TESTER")
                 .requestMatchers("/api/v1/operations/**").authenticated()
                 .anyRequest().permitAll());
         http.formLogin(form -> form
