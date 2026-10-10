@@ -82,6 +82,38 @@ API 调用密钥与 Webhook 签名密钥用途不同：API Key/Client ID 用于�
 
 配置 `PAYMENT_CHECKOUT_PUBLIC_BASE_URL` 为支付项目公开前端的 HTTPS 根地址，配置 `STARTRAIL_BUSINESS_ORDER_URL_TEMPLATE` 为星辙真实业务订单页，包含唯一 `{businessOrderId}` 占位符。配置只在服务端管理，不能接收用户任意返回网址；生产禁止本地模拟地址。Webhook 地址仍是公开后端域名加 `/api/v1/webhooks/airwallex`，它与浏览器付款返回地址不同。
 
-Flyway 公共迁移现已到 V119（增加仅供付款返回使用的短期令牌表）；保留历史迁移和数据，不为整理目录删除已应用迁移。后续公共迁移从 V120 顺延。服务运行后自动发现有服务商编号的未决订单；默认补查间隔 10 秒、订单创建 10 秒后纳入，每批最多 10 笔，失败最多退避 15 分钟。监控应覆盖补查失败、通知积压、Webhook 失败、待核实订单和数据库容量，生产部署前仍需安排告警、备份恢复及真实付款退款验收。该节奏仅用于支付状态恢复，不代表结算或财务对账每 10 秒执行。
+Flyway 公共迁移现已到 V123；保留历史迁移和数据，不为整理目录删除已应用迁移。新增迁移从下一个未使用编号顺延。服务运行后自动发现有服务商编号的未决订单；默认补查间隔 10 秒、订单创建 10 秒后纳入，每批最多 10 笔，失败最多退避 15 分钟。监控应覆盖补查失败、通知积压、Webhook 失败、待核实订单和数据库容量，生产部署前仍需安排告警、备份恢复及真实付款退款验收。该节奏仅用于支付状态恢复，不代表结算或财务对账每 10 秒执行。
 
 本地只有订单模拟器；生产不装配模拟接口，需星辙真实接口及订单页就位。上线配置切换之外，还要确认正式账户支付方式、CNY/USD可用能力、Webhook可达和密钥匹配；不能将“改密钥后可构建”当作上线验收。
+
+## 本地观测栈开发验证
+
+`compose.observability.yaml` 是独立的受控开发验证配置，包含 Alloy、Prometheus、Loki、Tempo、Grafana；它不是生产高可用部署。运行前复制示例并为 Grafana 设置独立随机本地密码，不复用支付数据库、Airwallex 或星辙凭证：
+
+```bash
+cp .env.observability.example .env.observability
+openssl rand -base64 32
+```
+
+将生成值仅写入本机未跟踪的 `.env.observability` 中 `OBS_GRAFANA_ADMIN_PASSWORD`，不要写入示例、仓库或聊天。随后在项目根目录独立启动或停止观测栈：
+
+```bash
+docker compose --env-file .env.observability -f compose.observability.yaml up -d
+docker compose --env-file .env.observability -f compose.observability.yaml down
+```
+
+停止命令保留命名卷，不清除监控历史。不要使用带卷删除参数的停止命令；支付 PostgreSQL 的 `startrail-payment-data` 卷更不属于观测栈，绝不可当作清理监控的步骤。确需清理观测数据时，先由负责人确认数据保留和备份，再按卷名逐个审查；本指南不提供自动删除步骤。
+
+Compose 宿主端口全部只绑定 `127.0.0.1`：Grafana 默认 `3300`，Prometheus 默认 `9091`，Alloy 的 OTLP/HTTP 接收端默认 `4318`，分别由 `OBS_GRAFANA_HOST_PORT`、`OBS_PROMETHEUS_HOST_PORT`、`OBS_OTLP_HTTP_HOST_PORT` 覆盖。Grafana 登录用户默认 `local-operator`，密码必须由 `.env.observability` 提供；Grafana 关闭匿名访问和自助注册。Loki、Tempo 的接收端及 Alloy 管理界面没有宿主端口映射；Alloy 的 OTLP/HTTP 接收端则映射到 `127.0.0.1:${OBS_OTLP_HTTP_HOST_PORT:-4318}`。Prometheus、Loki 和 Tempo 未设置独立公网认证层。
+
+五个独立命名卷分别为 `startrail-observability-alloy-data`（Alloy 本地数据）、`startrail-observability-prometheus-data`（时序指标）、`startrail-observability-loki-data`（日志存储）、`startrail-observability-tempo-data`（追踪存储）、`startrail-observability-grafana-data`（Grafana 配置与状态）。所有容器只加入 `startrail-observability-internal` 专用内部网络；这套 Compose 未把支付后端加入该网络。示例保留期为 Prometheus 15 天、Loki 168 小时、Tempo 168 小时；这些不是已批准的生产留存政策，也没有备份或恢复保证。
+
+本地 IDEA 后端可按 `.env.observability.example` 中的 `MANAGEMENT_*` 示例在项目根 `.env` 启用 OTLP 追踪，指向 `http://localhost:4318/v1/traces`。如果修改宿主 OTLP 端口，必须同步改后端的 endpoint；Compose 与 IDEA 不自动同步。追踪默认关闭且采样率为零；本地示例的全量采样不得直接用于生产。
+
+应用配置明确关闭 OTLP 指标主动导出（`management.otlp.metrics.export.enabled=false`）；本地指标采用 Prometheus 从受控管理端点拉取，OTLP 端口仅用于追踪。当前 HTTP span 去除原始地址和查询参数，异常事件只带固定安全消息及受限类别；部署后仍需抽查实际导出数据，确认没有上游组件新增敏感属性。
+
+Prometheus 的 `payment-service:8081` 是容器部署占位抓取目标。本地 IDEA 管理端口默认只绑定 `127.0.0.1:8081`，观测容器无法按该目标抓取；若日后容器化接入，应由受控内部网络、绑定地址和访问策略共同限定，不能公开管理端口。应用安全 JSON 日志目前只输出到 IDE 控制台，Alloy 没有日志采集管道，因此 Loki 不含应用日志；待批准安全日志文件通道后再接入。Grafana 追踪面板可按追踪编号查询 Tempo，但运营后台当前没有服务端提供的 Grafana 跳转地址合同，仅显示编号文本。
+
+当前 Prometheus 告警规则只评估技术指标，不配置通知目的地。`stale_pending` 仅覆盖 `CREATING`、`PROCESSING`、`REQUIRES_REVIEW`，排除正常等待付款的 `AWAITING_PAYMENT`；它按支付单 `updated_at` 最近变化统计，不能解释为 Airwallex 付款超时或失败。阈值仅供开发观察，生产需按真实流量确定。
+
+生产监控数据、监控账号和访问范围、保留期限、备份恢复、容量、告警接收人及渠道均由星辙持有并确认；接入第三方告警目标须另行批准。监控不可用时先核对支付数据库、通知 outbox、退款和对账的原始业务记录，再恢复采集与告警；不能通过监控事件直接改写支付结果。上线前仍需验证受控网络、采集、权限、保留与恢复，本地 Compose 静态配置不代表这些事项已验收。

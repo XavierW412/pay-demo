@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, ClipboardList, FileClock, LayoutDashboard, LogOut, RefreshCw, ScanSearch, ShieldCheck, Users } from 'lucide-react'
+import { Activity, ArrowRight, ClipboardList, FileClock, LayoutDashboard, LogOut, RefreshCw, ScanSearch, ShieldCheck, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { getCurrentOperator, logoutOperator } from './api'
@@ -66,6 +66,7 @@ export function OperationsLayout() {
     { to: '/operations', label: '运营工作台', icon: LayoutDashboard },
     { to: '/operations/transactions', label: '交易', icon: ClipboardList },
     { to: '/operations/reconciliation', label: '对账与异常', icon: ScanSearch },
+    { to: '/operations/diagnostics', label: '技术诊断', icon: Activity },
     { to: '/operations/audit', label: '操作记录', icon: FileClock },
     ...(session.role === 'STAFF_ADMIN' ? [{ to: '/operations/team', label: '员工与权限', icon: Users }] : []),
   ]

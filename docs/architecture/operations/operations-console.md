@@ -19,9 +19,9 @@
 
 ### 资金总览
 
-`GET /api/v1/operations/finance/overview?from=YYYY-MM-DD&to=YYYY-MM-DD` 仅登录后可读，日期范围最多 93 天。页面及 API 按 CNY/USD 分开返回 Airwallex 支付单的成功金额/笔数、退款待确认/处理中/执行成功金额，以及最近支付状态核查差异和退款拦截/待核实数量。本地 `LOCAL_SIMULATOR` 不参与汇总。
+`GET /api/v1/operations/finance/overview?from=YYYY-MM-DD&to=YYYY-MM-DD` 仅登录后可读，日期范围最多 93 天。页面及 API 按 CNY/USD 分开返回 Airwallex 支付单成功金额/笔数、退款待确认金额、退款处理中金额、业务退款成功金额、渠道待结算金额、渠道已结算金额，以及最近支付状态核查差异和退款拦截/待核实数量。本地 `LOCAL_SIMULATOR` 不参与汇总。业务退款成功金额包括 Airwallex `ACCEPTED` 与 `SETTLED`；渠道待结算和已结算金额是该成功总额的互斥分项，不得重复相加。
 
-实际结算入账金额和手续费字段当前为空，数据源状态为 `AIRWALLEX_SETTLEMENT_REPORT_NOT_CONNECTED`。未接入结算报告时不从支付成功额和退款额推算到账；用户界面明确提示“待接入”。支付成功、退款 API 的 `SUCCEEDED` 和 Airwallex 实际结算批次是分别记录的事实。
+实际结算入账金额和手续费字段当前为空，数据源状态为 `AIRWALLEX_SETTLEMENT_REPORT_NOT_CONNECTED`。未接入结算报告时不从支付成功额和退款额推算到账；用户界面明确提示“待接入”。退款业务在 `ACCEPTED` 时成功；之后的 `SETTLED` 是渠道结算进度，不是资金净入账数据。API 增加 `refundBusinessSucceededAmount`、`refundChannelPendingSettlementAmount`、`refundChannelSettledAmount`；保留 `refundSucceededAmount` 作为业务成功总额的兼容别名。
 
 列表基于 `payment_order`，按创建时间倒序分页，支持星辙订单号或本项目支付单号搜索、支付状态筛选。支付通知状态只从付款事件的 `notification_outbox` 读取，退款通知分开显示；退款状态栏按待确认、待核实、拦截、处理中、终态的优先级显示最需关注的一笔，不代表最近创建的一笔；详情列出该支付单的全部退款指令。尚无退款指令时只说明“本项目未收到指令”，不能推断星辙没有业务退款请求。结算报表尚未接入时显示“待接入”，不能伪造“已结算”。详情展示关联编号、金额、币种、Airwallex Payment Intent 编号、支付与通知状态、退款记录、核查历史、处理备注及审计。
 
@@ -54,7 +54,7 @@ Flyway 创建运营账号、邀请、备注和审计表。启动时按环境变�
 
 `POST /api/v1/operations/refunds/{refundId}/refresh` 只允许 `STAFF_OPERATOR` 与 `STAFF_ADMIN`，只用于 `SUBMITTING`、`RECEIVED`、`ACCEPTED` 或 `NEEDS_REVIEW` 的 Airwallex 退款。已有服务商退款编号时只调用按编号查询；没有编号时只按原 Payment Intent 和已保存的服务商 `request_id` 查找。它不调用退款创建接口，也不生成新 `request_id`。
 
-服务端响应包含退款/业务/支付关联编号、金额、币种、本地与服务商状态、最近查询时间、星辙通知状态及 `outcome`。结果区分 `VERIFIED`、`NOT_FOUND`、`MISMATCH`、`PROVIDER_UNAVAILABLE` 与 `NOT_SUPPORTED`。未找到记录或服务商不可用都不等同于退款失败，原额度继续保留；编号、原支付、金额或币种不一致时转为 `NEEDS_REVIEW` 并保留说明。所有结果写入员工审计，不记录 Airwallex 凭证或完整远端响应。
+服务端响应包含退款/业务/支付关联编号、金额、币种、`businessOutcome`、本地 `status`、归一后的 `providerStatus`、原始 `rawProviderStatus`、最近查询时间、星辙通知状态及 `outcome`。结果区分 `VERIFIED`、`NOT_FOUND`、`MISMATCH`、`PROVIDER_UNAVAILABLE` 与 `NOT_SUPPORTED`。未找到记录或服务商不可用都不等同于退款失败，原额度继续保留；编号、原支付、金额或币种不一致时保留核查说明。若退款已经 `ACCEPTED`，核查异常不把已成功的业务退款回退为待核实。所有结果写入员工审计，不记录 Airwallex 凭证或完整远端响应。
 
 后台导航为运营工作台、交易、对账与异常、操作记录、员工与权限；`/operations/finance` 保留原资金详情书签。所有者仍只读，用户界面隐藏不能替代服务端授权。结算报告未接入前，到账与手续费保持空值并显示“待接入”，不使用支付减退款估算。
 

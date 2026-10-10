@@ -55,7 +55,9 @@ pnpm dev:mock-xingzhe
 
 后端脚本和 IDEA 从 `backend` 目录启动时，`local` 配置会读取项目根目录 `.env`；IDE 需选择 Java 21、激活 `local` 配置。当前终端若仍使用 Java 8，可先在该终端执行 `sdk use java 21.0.12+1.1-tem`，或选用本机已安装的 Java 21 版本。
 
-支付后台地址为 `http://localhost:5173`，本地模拟星辙地址为 `http://localhost:5175/mock-xingzhe`，后端健康状态为 `http://localhost:8080/actuator/health`。支付后台只代理 `/api`；模拟器单独代理 `/mock-xingzhe/api`。生产只构建和部署支付后台，不部署模拟器。
+支付后台地址为 `http://localhost:5173`，本地模拟星辙地址为 `http://localhost:5175/mock-xingzhe`，后端业务端口为 `8080`，管理健康检查在本机回环地址 `http://localhost:8081/actuator/health`。支付后台只代理 `/api`；模拟器单独代理 `/mock-xingzhe/api`。生产只构建和部署支付后台，不部署模拟器。
+
+需要在本机查看技术诊断、追踪或监控配置时，见[可观测性与技术诊断](docs/architecture/operations/observability-diagnostics.md)及[本地观测栈开发验证](docs/operations/deployment.md#本地观测栈开发验证)。该独立栈尚未完成运行验收，支付数据库卷不属于监控栈清理范围。
 
 运营后台入口为 `http://localhost:5173/operations`。首次启动时，后端会从根目录 `.env` 的 `OPERATOR_OWNER_USERNAME`、`OPERATOR_OWNER_PASSWORD` 创建只读所有者账号，并从 `OPERATOR_STAFF_USERNAME`、`OPERATOR_STAFF_PASSWORD` 创建首位星辙员工管理员账号。请在本机查看自己的 `.env` 获取登录信息，不要将密码发到聊天或提交到仓库。初始账号创建后，修改 `.env` 不会覆盖数据库中已有密码。员工管理员可以生成一次性员工邀请，也可以生成仅在本地 Airwallex 沙盒使用、固定 6 小时有效的甲方临时测试账号。临时账号密码仅显示一次；退款确认会真实调用当前沙盒，交付凭证时请使用可信渠道。详细权限和安全规则见[运营后台架构](docs/architecture/operations/operations-console.md#认证与权限)。
 
@@ -102,7 +104,7 @@ cloudflared tunnel --url http://localhost:8080
 https://……trycloudflare.com/api/v1/webhooks/airwallex
 ```
 
-可先访问 `https://……trycloudflare.com/actuator/health` 确认隧道能到达后端。创建 Webhook 后，将 Airwallex 为该订阅提供的签名密钥填入根目录 `.env` 的 `AIRWALLEX_WEBHOOK_SECRET`，然后重启后端，再发起沙盒付款。该密钥和 `AIRWALLEX_API_KEY` 不同，均不得提交到 Git 或发送到聊天中。
+先在 WSL 本机访问 `http://localhost:8081/actuator/health` 检查后端健康。隧道仍指向业务端口 `8080`，管理端口 `8081` 不通过公网隧道开放；Webhook 路径的公网可达性应由沙盒订阅投递结果与后端接收记录确认。创建 Webhook 后，将 Airwallex 为该订阅提供的签名密钥填入根目录 `.env` 的 `AIRWALLEX_WEBHOOK_SECRET`，然后重启后端，再发起沙盒付款。该密钥和 `AIRWALLEX_API_KEY` 不同，均不得提交到 Git 或发送到聊天中。
 
 临时隧道地址会在隧道停止后失效；测试期间需保持隧道终端运行。临时公网链接可访问本地服务，只在沙盒联调期间开启，结束后停止隧道和本地服务。Quick Tunnel 仅用于开发测试，不用于生产。
 

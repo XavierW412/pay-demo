@@ -1,0 +1,57 @@
+{
+  "id": null,
+  "uid": "startrail-payment-trace",
+  "title": "星辙支付 · Trace 查询",
+  "description": "按完整 trace_id 查找单条链路。Trace ID 是技术关联编号，不应作为告警或指标标签。",
+  "tags": ["startrail", "payment", "tracing"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": false,
+  "time": {"from": "now-24h", "to": "now"},
+  "annotations": {
+    "list": [{
+      "builtIn": 1,
+      "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+      "enable": true,
+      "hide": true,
+      "iconColor": "rgba(0, 211, 255, 1)",
+      "name": "Annotations & Alerts",
+      "type": "dashboard"
+    }]
+  },
+  "templating": {
+    "list": [{
+      "name": "traceId",
+      "label": "Trace ID",
+      "type": "textbox",
+      "query": "",
+      "current": {"text": "", "value": ""},
+      "hide": 0,
+      "skipUrlSync": true
+    }]
+  },
+  "panels": [{
+    "id": 1,
+    "type": "traces",
+    "title": "支付链路",
+    "description": "输入服务端返回或日志上下文中取得的 trace_id。当前 IDE 控制台日志尚未接入 Loki；可从已受保护的追踪上下文获取该编号。",
+    "gridPos": {"x": 0, "y": 0, "w": 24, "h": 18},
+    "datasource": {"type": "tempo", "uid": "payment-tempo"},
+    "targets": [{
+      "refId": "A",
+      "datasource": {"type": "tempo", "uid": "payment-tempo"},
+      "queryType": "traceId",
+      "query": "${traceId}",
+      "tableType": "traces",
+      "limit": 20
+    }],
+    "options": {},
+    "fieldConfig": {"defaults": {}, "overrides": []}
+  }],
+  "links": [],
+  "liveNow": false,
+  "fiscalYearStartMonth": 0,
+  "weekStart": "",
+  "graphTooltip": 0
+}

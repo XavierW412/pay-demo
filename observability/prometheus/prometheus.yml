@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: startrail-controlled
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Deployment placeholder: this target works only when the payment service is
+  # attached to this private network and MANAGEMENT_SERVER_ADDRESS is bound to
+  # an internal interface. IDEA/local runs bind management to 127.0.0.1, so
+  # this container target cannot reach the IDE process and is not advertised
+  # as a working local scrape path.
+  - job_name: payment-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["payment-service:8081"]

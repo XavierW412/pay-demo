@@ -1,5 +1,6 @@
 package com.startrail.payment.reconciliation.infrastructure;
 
+import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
 import com.startrail.payment.reconciliation.application.PaymentReconciliationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,14 +14,30 @@ public class PaymentReconciliationScheduler {
 
     private final ReconciliationStore store;
     private final PaymentReconciliationService service;
+    private final PaymentTelemetry telemetry;
 
-    public PaymentReconciliationScheduler(ReconciliationStore store, PaymentReconciliationService service) {
+    public PaymentReconciliationScheduler(
+            ReconciliationStore store, PaymentReconciliationService service, PaymentTelemetry telemetry) {
         this.store = store;
         this.service = service;
+        this.telemetry = telemetry;
     }
 
     @Scheduled(fixedDelayString = "${payment.reconciliation.poll-delay-ms:60000}")
     public void checkDuePayments() {
+        try {
+            var failed = telemetry.observe(PaymentTelemetry.Operation.PAYMENT_RECONCILIATION,
+                    this::checkDuePaymentsObserved);
+            telemetry.increment(PaymentTelemetry.CounterMetric.PAYMENT_RECONCILIATION,
+                    failed ? PaymentTelemetry.Result.FAILURE : PaymentTelemetry.Result.SUCCESS);
+        } catch (RuntimeException exception) {
+            telemetry.increment(PaymentTelemetry.CounterMetric.PAYMENT_RECONCILIATION, PaymentTelemetry.Result.FAILURE);
+            throw exception;
+        }
+    }
+
+    private boolean checkDuePaymentsObserved() {
+        var failed = false;
         store.discoverDueOrders();
         for (var paymentOrderId : store.dueOrderIds(10)) {
             try {
@@ -30,9 +47,11 @@ public class PaymentReconciliationScheduler {
                     break;
                 }
             } catch (RuntimeException exception) {
+                failed = true;
                 LOGGER.warn("支付状态核查未完成，支付单 {}，异常类型 {}",
                         paymentOrderId, exception.getClass().getSimpleName());
             }
         }
+        return failed;
     }
 }

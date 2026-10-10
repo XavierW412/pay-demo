@@ -82,6 +82,12 @@ public class OperationsRefundStatusQueryService {
 
         stateService.applyProviderResult(refundId, providerRefund);
         var updated = refunds.findById(refundId).orElseThrow();
+        if ("ACCEPTED".equals(refund.status())
+                && !Set.of("ACCEPTED", "SETTLED", "SUCCEEDED").contains(providerRefund.status())) {
+            audit.record(username, payment.id(), "REFRESH_REFUND_STATUS", "MISMATCH",
+                    "退款业务已成功，但 Airwallex 返回的状态未能确认渠道进度");
+            return result(refundId, payment.id(), "MISMATCH", checkedAt);
+        }
         if ("NEEDS_REVIEW".equals(updated.status())) {
             audit.record(username, payment.id(), "REFRESH_REFUND_STATUS", "MISMATCH",
                     "退款状态仍需人工核对：" + safeProviderStatus(providerRefund.status()));
@@ -112,7 +118,9 @@ public class OperationsRefundStatusQueryService {
                     ORDER BY n.created_at DESC, n.event_id DESC LIMIT 1), 'NOT_REQUIRED')
                 """, String.class, refundId);
         return new RefundStatusResult(refund.id(), refund.refundRequestId(), refund.paymentOrderId(),
-                refund.businessOrderId(), refund.providerRefundId(), refund.status(), refund.providerStatus(),
+                refund.businessOrderId(), refund.providerRefundId(), refund.status(),
+                OperationsRefundQueryService.businessOutcome(refund.status()),
+                OperationsRefundQueryService.normalizeProviderStatus(refund.providerStatus()), refund.providerStatus(),
                 refund.amount().toPlainString(), refund.currency(),
                 refund.lastCheckedAt() == null ? checkedAt : refund.lastCheckedAt(), notificationStatus, outcome,
                 refund.lastError());
@@ -129,7 +137,9 @@ public class OperationsRefundStatusQueryService {
             String businessOrderId,
             String providerRefundId,
             String status,
+            String businessOutcome,
             String providerStatus,
+            String rawProviderStatus,
             String amount,
             String currency,
             Instant lastCheckedAt,

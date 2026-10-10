@@ -88,6 +88,9 @@ export interface RefundRow {
   amount: string
   currency: string
   status: string
+  businessOutcome: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'PENDING'
+  providerStatus: string | null
+  rawProviderStatus: string | null
   notificationStatus: string
   providerRefundId: string | null
   reviewReason: string | null
@@ -102,7 +105,9 @@ export interface RefundStatusResult {
   businessOrderId: string
   providerRefundId: string | null
   status: string
+  businessOutcome: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'PENDING'
   providerStatus: string | null
+  rawProviderStatus: string | null
   amount: string
   currency: string
   lastCheckedAt: string
@@ -171,6 +176,10 @@ export interface FinanceCurrencySummary {
   paymentSucceededCount: number
   refundAwaitingConfirmationAmount: string
   refundProcessingAmount: string
+  refundBusinessSucceededAmount: string
+  refundChannelPendingSettlementAmount: string
+  refundChannelSettledAmount: string
+  /** Compatibility alias for older finance consumers. */
   refundSucceededAmount: string
   blockedRefundCount: number
   paymentExceptionCount: number
@@ -185,6 +194,60 @@ export interface FinanceOverview {
   to: string
   settlementSourceStatus: 'AIRWALLEX_SETTLEMENT_REPORT_NOT_CONNECTED'
   currencies: FinanceCurrencySummary[]
+}
+
+export type DiagnosticSeverity = 'ERROR' | 'WARNING' | 'INFO'
+export type DiagnosticModule = 'CHECKOUT' | 'OPERATIONS' | 'SIMULATOR'
+export type DiagnosticStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
+
+export interface DiagnosticRow {
+  diagnosticId: string
+  occurredAt: string
+  receivedAt: string
+  latestReceivedAt: string
+  occurrenceCount: number
+  environment: string
+  appVersion: string
+  browserFamily: string
+  category: string
+  severity: DiagnosticSeverity
+  module: DiagnosticModule
+  routeTemplate: string
+  summary: string
+  status: DiagnosticStatus
+  handledAt: string | null
+}
+
+export interface DiagnosticIncident extends DiagnosticRow {
+  requestId: string | null
+  traceId: string | null
+  relatedDiagnosticId: string | null
+  paymentOrderId: string | null
+  userDescription: string | null
+}
+
+export interface DiagnosticHistory {
+  id: number
+  actor: string
+  action: 'ACKNOWLEDGE' | 'NOTE' | 'RESOLVE'
+  note: string | null
+  createdAt: string
+}
+
+export interface DiagnosticDetail {
+  incident: DiagnosticIncident
+  history: DiagnosticHistory[]
+}
+
+export interface DiagnosticFilters {
+  diagnosticId?: string
+  from?: string
+  to?: string
+  module?: DiagnosticModule
+  severity?: DiagnosticSeverity
+  status?: DiagnosticStatus
+  page?: number
+  size?: number
 }
 
 interface CsrfToken {
@@ -375,4 +438,27 @@ export const getFinanceOverview = async (from: string, to: string): Promise<Fina
     params: { from, to },
   })
   return response.data
+}
+
+export const getDiagnostics = async (params: DiagnosticFilters): Promise<OperationsPage<DiagnosticRow>> => {
+  const response = await apiClient.get<OperationsPage<DiagnosticRow>>('/api/v1/operations/diagnostics', { params })
+  return response.data
+}
+
+export const getDiagnosticDetail = async (diagnosticId: string): Promise<DiagnosticDetail> => {
+  const response = await apiClient.get<DiagnosticDetail>(
+    `/api/v1/operations/diagnostics/${encodeURIComponent(diagnosticId)}`,
+  )
+  return response.data
+}
+
+export const handleDiagnostic = async (
+  diagnosticId: string,
+  action: 'acknowledge' | 'notes' | 'resolve',
+  note: string,
+): Promise<DiagnosticDetail> => {
+  return postWithCsrf<DiagnosticDetail>(
+    `/api/v1/operations/diagnostics/${encodeURIComponent(diagnosticId)}/${action}`,
+    { note },
+  )
 }

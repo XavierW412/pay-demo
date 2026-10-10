@@ -1,0 +1,221 @@
+{
+  "id": null,
+  "uid": "startrail-payment-overview",
+  "title": "星辙支付 · 运行概览",
+  "description": "只显示有界技术指标，不包含业务订单、支付单、用户或付款方式明细。日志采集尚未接入。",
+  "tags": ["startrail", "payment", "operations"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "API 请求速率",
+      "description": "全服务聚合请求速率，不按路径或用户拆分。",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(rate(http_server_requests_seconds_count[5m]))", "legendFormat": "请求/秒"}],
+      "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "HTTP 5xx / 5 分钟",
+      "description": "全服务聚合错误数。",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(increase(http_server_requests_seconds_count{status=~\"5..\"}[5m]))", "legendFormat": "5xx"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "平均 API 耗时",
+      "description": "按服务整体计算，不展示 URL 或请求内容。",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(rate(http_server_requests_seconds_sum[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)", "legendFormat": "秒"}],
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "待核实支付",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "startrail_payment_verification_pending", "legendFormat": "待核实"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "收款请求创建结果",
+      "gridPos": {"x": 0, "y": 5, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (result) (rate(startrail_payment_intent_creation_total[5m]))", "legendFormat": "{{result}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "支付核查结果",
+      "gridPos": {"x": 12, "y": 5, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (result) (rate(startrail_payment_verification_total[5m]))", "legendFormat": "{{result}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Webhook 接收与处理结果",
+      "gridPos": {"x": 0, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (result) (rate(startrail_payment_webhook_receipt_total[5m]))", "legendFormat": "接收 · {{result}}"},
+        {"refId": "B", "expr": "sum by (result) (rate(startrail_payment_webhook_processing_total[5m]))", "legendFormat": "处理 · {{result}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "通知投递与退款结果",
+      "gridPos": {"x": 12, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (result) (rate(startrail_payment_outbox_delivery_total[5m]))", "legendFormat": "通知 · {{result}}"},
+        {"refId": "B", "expr": "sum by (result) (rate(startrail_payment_refund_execution_total[5m]))", "legendFormat": "退款执行 · {{result}}"},
+        {"refId": "C", "expr": "sum by (result) (rate(startrail_payment_refund_verification_total[5m]))", "legendFormat": "退款核查 · {{result}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "通知待投递 / 重试",
+      "gridPos": {"x": 0, "y": 21, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "startrail_payment_notification_outbox_pending", "legendFormat": "通知队列"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "待核实退款",
+      "gridPos": {"x": 6, "y": 21, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "startrail_payment_refund_result_unknown", "legendFormat": "未知结果"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "最近 24 小时核对差异",
+      "gridPos": {"x": 12, "y": 21, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "startrail_payment_reconciliation_differences_24h", "legendFormat": "差异"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "调度器结果与耗时",
+      "gridPos": {"x": 18, "y": 21, "w": 6, "h": 10},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (result) (rate(startrail_payment_reconciliation_total[5m]))", "legendFormat": "核查调度 · {{result}}"},
+        {"refId": "B", "expr": "sum by (operation) (rate(startrail_payment_operation_duration_seconds_sum[5m])) / clamp_min(sum by (operation) (rate(startrail_payment_operation_duration_seconds_count[5m])), 0.001)", "legendFormat": "{{operation}} 平均秒"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "数据库连接池",
+      "description": "只显示连接池数量，不展示 SQL 或业务数据。",
+      "gridPos": {"x": 0, "y": 26, "w": 12, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "hikaricp_connections_active", "legendFormat": "活动连接"},
+        {"refId": "B", "expr": "hikaricp_connections_pending", "legendFormat": "等待连接"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 14,
+      "type": "text",
+      "title": "数据与告警边界",
+      "gridPos": {"x": 12, "y": 26, "w": 6, "h": 5},
+      "options": {"mode": "markdown", "content": "当前模板不接入应用日志，避免读取不受控来源。Prometheus 规则只负责评估告警；尚未配置通知接收渠道。告警阈值是可调整的技术观察值，不是支付业务规则。"}
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "应用抓取状态",
+      "gridPos": {"x": 18, "y": 31, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "up{job=\"payment-service\"}", "legendFormat": "支付服务"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [{"type": "value", "options": {"0": {"text": "未连接", "color": "red"}, "1": {"text": "可抓取", "color": "green"}}}],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "本地状态记录长时间未变化的待处理支付",
+      "description": "仅统计 updated_at 超过技术观察阈值且状态为 CREATING、PROCESSING 或 REQUIRES_REVIEW 的 Airwallex 支付数量。AWAITING_PAYMENT 是正常等待用户付款，不纳入。updated_at 会随已保存的服务商状态变化而更新，即使映射后的内部状态不变；指标不表示付款超时或失败。",
+      "gridPos": {"x": 12, "y": 31, "w": 6, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "payment-prometheus"},
+      "targets": [{"refId": "A", "expr": "startrail_payment_verification_stale_pending", "legendFormat": "本地状态记录长时间未变化"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto"}
+    }
+  ],
+  "templating": {"list": []},
+  "links": [],
+  "liveNow": false,
+  "fiscalYearStartMonth": 0,
+  "weekStart": "",
+  "graphTooltip": 1
+}

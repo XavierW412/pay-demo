@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CircleDashed, LoaderCircle } from 'lucide-react'
+import axios from 'axios'
 import { approveMockRefund, createMockRefundRequest, getMockBusinessOrderStatus, getMockPaymentHistory, getMockRefundEvents, getMockRefundRequests, initiateMockBusinessOrderPayment, rejectMockRefund, simulateMockPaymentResult } from './api'
 import './mock-xingzhe.css'
 
@@ -10,6 +11,7 @@ export function MockXingzheOrderPage() {
   const [refundAmount, setRefundAmount] = useState('')
   const [refundPending, setRefundPending] = useState(false)
   const [refundMessage, setRefundMessage] = useState('')
+  const [canReplacePendingRefund, setCanReplacePendingRefund] = useState(false)
   const [paymentPending, setPaymentPending] = useState(false)
   const [paymentMessage, setPaymentMessage] = useState('')
   const [simulationPending, setSimulationPending] = useState(false)
@@ -51,6 +53,16 @@ export function MockXingzheOrderPage() {
   const canContinueAirwallexPayment = order
     && ['CREATING', 'AWAITING_PAYMENT'].includes(order.paymentStatus)
   const isLocalSimulation = order?.paymentMode === 'LOCAL_SIMULATOR'
+  const refundRequestsList = refundRequests.data?.requests ?? []
+  const originalRefundableAmount = order ? amountToMinorUnits(order.amount) : 0n
+  const reservedRefundAmount = refundRequestsList.reduce((total, request) => {
+    if (request.businessDecision === 'REJECTED' || ['FAILED', 'BLOCKED'].includes(request.paymentServiceStatus)) {
+      return total
+    }
+    return total + amountToMinorUnits(request.amount)
+  }, 0n)
+  const remainingRefundAmount = originalRefundableAmount > reservedRefundAmount
+    ? originalRefundableAmount - reservedRefundAmount : 0n
   const canControlLocalSimulation = isLocalSimulation && order
     && ['AWAITING_PAYMENT', 'PROCESSING', 'REQUIRES_REVIEW'].includes(order.paymentStatus)
 
@@ -102,26 +114,84 @@ export function MockXingzheOrderPage() {
     }
   }
 
-  const requestRefund = async () => {
+  const requestRefund = async (replaceUnconfirmedRequest = false) => {
     if (!order || refundPending) return
-    const amount = refundAmount || order.amount
+    const storageKey = `mock-refund-request:${order.businessOrderId}`
     setRefundPending(true)
     setRefundMessage('')
     try {
-      const storageKey = `mock-refund-request:${order.businessOrderId}`
-      const previous = sessionStorage.getItem(storageKey)
-      const instruction = previous ? JSON.parse(previous) as { id: string; amount: string } : { id: crypto.randomUUID(), amount }
-      if (!previous) sessionStorage.setItem(storageKey, JSON.stringify(instruction))
-      if (instruction.amount !== amount) {
-        setRefundMessage('这张模拟订单已有退款申请编号。请用原金额重试，避免重复申请。')
+      const latest = await refundRequests.refetch()
+      if (!latest.data || latest.isError) {
+        setRefundMessage('还没有提交申请：无法读取现有退款记录，请先恢复服务并重新载入订单。')
         return
       }
+      const requests = latest.data.requests
+      const reserved = requests.reduce((total, request) => {
+        if (request.businessDecision === 'REJECTED' || ['FAILED', 'BLOCKED'].includes(request.paymentServiceStatus)) {
+          return total
+        }
+        return total + amountToMinorUnits(request.amount)
+      }, 0n)
+      const total = amountToMinorUnits(order.amount)
+      const remaining = total > reserved ? total - reserved : 0n
+      if (remaining <= 0n) {
+        setRefundMessage('这笔订单的可退款金额已全部申请或退款。')
+        return
+      }
+      const amount = refundAmount.trim() || minorUnitsToAmount(remaining)
+      const amountMinor = amountToMinorUnits(amount)
+      if (amountMinor <= 0n || amountMinor > remaining) {
+        setRefundMessage(`申请金额无效，当前最多还可申请 ${minorUnitsToAmount(remaining)} ${order.currency}。`)
+        return
+      }
+      let previous: { id: string; amount: string } | null = null
+      const saved = sessionStorage.getItem(storageKey)
+      if (saved) {
+        try {
+          const parsed: unknown = JSON.parse(saved)
+          if (parsed && typeof parsed === 'object' && 'id' in parsed && 'amount' in parsed
+            && typeof parsed.id === 'string' && typeof parsed.amount === 'string') {
+            previous = { id: parsed.id, amount: parsed.amount }
+          } else {
+            sessionStorage.removeItem(storageKey)
+          }
+        } catch {
+          sessionStorage.removeItem(storageKey)
+        }
+      }
+      if (previous && requests.some((request) => request.refundRequestId === previous?.id)) {
+        sessionStorage.removeItem(storageKey)
+        setCanReplacePendingRefund(false)
+        setRefundMessage('已在退款记录中找到上次申请，确认它已被模拟星辙接收。若还需申请下一笔退款，请再次提交。')
+        return
+      }
+      if (previous && previous.amount !== amount && !replaceUnconfirmedRequest) {
+        setCanReplacePendingRefund(true)
+        setRefundMessage('浏览器里有一笔未确认申请，但星辙记录中暂未找到。可以用原金额重试，或先重新查询后确认放弃旧编号，再按当前金额新建。')
+        return
+      }
+      const instruction = previous && !replaceUnconfirmedRequest
+        ? previous : { id: crypto.randomUUID(), amount }
+      if (replaceUnconfirmedRequest) sessionStorage.removeItem(storageKey)
+      sessionStorage.setItem(storageKey, JSON.stringify(instruction))
       await createMockRefundRequest(order.businessOrderId, instruction.id, instruction.amount)
       sessionStorage.removeItem(storageKey)
+      setRefundAmount('')
+      setCanReplacePendingRefund(false)
       setRefundMessage('退款申请已记录。下一步由模拟星辙业务方决定是否批准。')
       await refundRequests.refetch()
-    } catch {
-      setRefundMessage('申请结果暂时未知。再次提交会使用同一申请编号。')
+    } catch (error: unknown) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      const body: unknown = axios.isAxiosError(error) ? error.response?.data : undefined
+      const serverMessage = body && typeof body === 'object' && 'message' in body
+        && typeof body.message === 'string' ? body.message : null
+      if (status !== undefined && status < 500) {
+        sessionStorage.removeItem(storageKey)
+        setCanReplacePendingRefund(false)
+        setRefundMessage(serverMessage ?? '退款申请被模拟星辙拒绝，请检查金额和退款记录后再试。')
+      } else {
+        setRefundMessage('申请结果暂时未知。再次提交会先查询星辙记录；若尚未收到，会使用同一编号重试。')
+      }
     } finally {
       setRefundPending(false)
     }
@@ -228,19 +298,23 @@ export function MockXingzheOrderPage() {
           {active && order && !isLocalSimulation && <div className="mt-6 border-t border-current/10 pt-5">
             <h3 className="text-base font-semibold">星辙业务退款处理</h3>
             <p className="mt-2 text-sm leading-6 opacity-75">先模拟用户提出申请，再由星辙业务方批准或拒绝。只有批准后才发送签名指令给支付项目。</p>
-            <div className="mt-4 flex flex-wrap items-end gap-3"><label className="text-sm">申请金额（{order.currency}）<input className="mt-1 block h-11 w-40 rounded-lg border border-current/20 bg-transparent px-3" type="number" min="0.01" max={order.amount} step="0.01" placeholder={order.amount} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label><button className="mock-xingzhe-button secondary" type="button" disabled={refundPending} onClick={() => void requestRefund()}>{refundPending ? '正在提交…' : '提交退款申请'}</button></div>
+            <p className="mt-2 text-sm">订单金额 {order.currency} {order.amount} · 已占用 {order.currency} {minorUnitsToAmount(reservedRefundAmount)} · 当前可申请 {order.currency} {minorUnitsToAmount(remainingRefundAmount)}</p>
+            <div className="mt-4 flex flex-wrap items-end gap-3"><label className="text-sm">申请金额（{order.currency}）<input className="mt-1 block h-11 w-40 rounded-lg border border-current/20 bg-transparent px-3" type="number" min="0.01" max={minorUnitsToAmount(remainingRefundAmount)} step="0.01" placeholder={minorUnitsToAmount(remainingRefundAmount)} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label><button className="mock-xingzhe-button secondary" type="button" disabled={refundPending || refundRequests.isPending || refundRequests.isError || remainingRefundAmount <= 0n} onClick={() => void requestRefund()}>{refundPending ? '正在提交…' : '提交退款申请'}</button>{canReplacePendingRefund && <button className="mock-xingzhe-button primary" type="button" disabled={refundPending || refundRequests.isPending || refundRequests.isError || remainingRefundAmount <= 0n} onClick={() => void requestRefund(true)}>{refundPending ? '正在提交…' : '确认放弃旧编号并按当前金额新建'}</button>}</div>
             {refundMessage && <p className="mt-3 text-sm" role="status">{refundMessage}</p>}
             {refundRequests.data?.requests.map((request) => <div className="mt-4 rounded-lg border border-current/10 p-4" key={request.refundRequestId}>
               <div className="flex flex-wrap justify-between gap-2 text-sm"><strong>{request.currency} {request.amount}</strong><span>业务处理：{request.businessDecision === 'REQUESTED' ? '待审批' : request.businessDecision === 'APPROVED' ? '已批准' : '已拒绝'}</span></div>
               <p className="mt-2 break-all font-mono text-xs opacity-70">申请编号：{request.refundRequestId}</p>
-              {request.businessDecision === 'APPROVED' && <p className="mt-1 text-sm">支付项目状态：{request.paymentServiceStatus}</p>}
+              {request.businessDecision === 'APPROVED' && <>
+                <p className="mt-1 text-sm">业务退款结果：{refundBusinessLabel(request.businessOutcome, request.paymentServiceStatus, request.providerStatus)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">支付项目处理：{refundExecutionLabel(request.paymentServiceStatus)} · Airwallex 状态：{providerStatusLabel(request.providerStatus, request.rawProviderStatus)}</p>
+              </>}
               {request.businessDecision === 'REQUESTED' && <div className="mt-3 flex flex-wrap gap-2">
                 <button className="mock-xingzhe-button primary" type="button" disabled={refundPending} onClick={() => void approveRefund(request.refundRequestId)}>模拟星辙批准并发送</button>
                 <button className="mock-xingzhe-button secondary" type="button" disabled={refundPending} onClick={() => void rejectRefund(request.refundRequestId)}>模拟星辙拒绝</button>
               </div>}
               {request.businessDecision === 'APPROVED' && ['NOT_SENT', 'PENDING_OPERATOR_CONFIRMATION'].includes(request.paymentServiceStatus) && <button className="mock-xingzhe-button secondary mt-3" type="button" disabled={refundPending} onClick={() => void approveRefund(request.refundRequestId)}>用同一编号重试发送</button>}
             </div>)}
-            {refundEvents.data && refundEvents.data.length > 0 && <div className="mt-4 space-y-2"><p className="text-sm font-medium">模拟星辙收到的退款通知</p>{refundEvents.data.map((event) => <p className="text-sm" key={`${event.refundRequestId}:${event.status}`}>{event.currency} {event.amount} · {event.status} · {new Date(event.receivedAt).toLocaleString('zh-CN')}</p>)}</div>}
+            {refundEvents.data && refundEvents.data.length > 0 && <div className="mt-4 space-y-2"><p className="text-sm font-medium">模拟星辙收到的退款通知</p>{refundEvents.data.map((event) => <p className="text-sm" key={`${event.refundRequestId}:${event.providerStatus ?? event.status}:${event.status}`}>{event.currency} {event.amount} · {refundBusinessLabel(event.businessOutcome, event.executionStatus ?? event.status, event.providerStatus)} · {new Date(event.receivedAt).toLocaleString('zh-CN')}<span className="block text-xs text-muted-foreground">支付项目处理：{refundExecutionLabel(event.executionStatus ?? event.status)} · Airwallex 状态：{providerStatusLabel(event.providerStatus, event.rawProviderStatus)}</span></p>)}</div>}
           </div>}
           <div className="mt-6 flex flex-wrap gap-3">
             <button className="mock-xingzhe-button secondary" type="button" onClick={() => void orderQuery.refetch()}>重新查询</button>
@@ -252,3 +326,46 @@ export function MockXingzheOrderPage() {
     </main>
   )
 }
+
+function refundBusinessLabel(outcome: string | null, executionStatus: string, providerStatus: string | null): string {
+  const businessOutcome = outcome ?? (executionStatus === 'ACCEPTED' || executionStatus === 'SUCCEEDED'
+    ? 'SUCCEEDED'
+    : executionStatus === 'FAILED' ? 'FAILED' : executionStatus === 'RECEIVED' ? 'PROCESSING' : 'PENDING')
+  if (businessOutcome === 'SUCCEEDED') {
+    return providerStatus === 'SETTLED' || providerStatus === 'SUCCEEDED'
+      ? '业务退款成功 · 渠道已结算'
+      : providerStatus === 'ACCEPTED'
+        ? '业务退款成功 · 渠道已接受'
+        : '业务退款成功 · 渠道状态待补充'
+  }
+  if (businessOutcome === 'FAILED') return '退款失败'
+  if (businessOutcome === 'PROCESSING') return '退款处理中'
+  return '退款结果待核实'
+}
+
+function refundExecutionLabel(status: string): string {
+  return ({
+    NOT_SENT: '尚未发送',
+    PENDING_OPERATOR_CONFIRMATION: '待支付侧管理员确认',
+    BLOCKED: '核对异常，已拦截',
+    SUBMITTING: '提交中',
+    RECEIVED: '请求已创建',
+    ACCEPTED: '渠道已接受',
+    SUCCEEDED: '处理完成',
+    FAILED: '处理失败',
+    NEEDS_REVIEW: '待核实',
+  } as Record<string, string>)[status] ?? status
+}
+
+function providerStatusLabel(status: string | null, rawStatus: string | null): string {
+  if (!status) return '尚无结果'
+  return rawStatus && rawStatus !== status ? `${status}（原始值 ${rawStatus}）` : status
+}
+
+const amountToMinorUnits = (amount: string): bigint => {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(amount)
+  if (!match) return 0n
+  return BigInt(match[1]) * 100n + BigInt((match[2] ?? '').padEnd(2, '0'))
+}
+
+const minorUnitsToAmount = (amount: bigint): string => `${amount / 100n}.${(amount % 100n).toString().padStart(2, '0')}`

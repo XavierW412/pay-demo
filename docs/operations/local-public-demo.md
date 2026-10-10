@@ -20,7 +20,7 @@ Quick Tunnel 是临时测试通道，生成的域名随机，停止后失效，�
 | --- | --- |
 | 支付后台 | `http://localhost:5173` |
 | 模拟星辙 | `http://localhost:5175/mock-xingzhe` |
-| 后端健康检查 | `http://localhost:8080/actuator/health` |
+| 后端健康检查（仅本机回环管理端口） | `http://localhost:8081/actuator/health` |
 | PostgreSQL | `localhost:5433` |
 
 ## 3. 启动本地服务
@@ -115,10 +115,10 @@ https://<后端隧道地址>/api/v1/webhooks/airwallex
 curl -I 'https://<后台公网地址>/'
 curl -I 'https://<模拟器公网地址>/mock-xingzhe'
 curl -i 'https://<模拟器公网地址>/mock-xingzhe/api/v1/products'
-curl -f 'http://localhost:8080/actuator/health'
+curl -f 'http://localhost:8081/actuator/health'
 ```
 
-页面和模拟器接口应返回成功状态；健康检查应返回 `200`。只有页面可打开不代表支付已完成端到端验收；沙盒 Webhook、付款核实和结果通知需要按对应流程另行验证。
+页面和模拟器接口应返回成功状态；本机管理健康检查应返回 `200`。Webhook 隧道仍指向业务端口 `8080`，不会开放管理端口；其公网可达性需通过沙盒订阅投递结果和后端接收记录确认。只有页面可打开不代表支付已完成端到端验收；沙盒 Webhook、付款核实和结果通知需要按对应流程另行验证。
 
 ## 8. 访问慢时的判断
 

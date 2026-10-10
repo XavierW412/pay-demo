@@ -14,8 +14,8 @@ const statusOptions = [
 ]
 const refundOptions = [
   ['', '全部退款关注状态'], ['NOT_REQUESTED', '未收到退款指令'], ['PENDING_OPERATOR_CONFIRMATION', '待管理员确认'],
-  ['SUBMITTING', '提交中'], ['RECEIVED', '已受理'], ['ACCEPTED', '处理中'], ['NEEDS_REVIEW', '待核实'],
-  ['BLOCKED', '已拦截'], ['SUCCEEDED', '退款成功'], ['FAILED', '退款失败'],
+  ['SUBMITTING', '提交中'], ['RECEIVED', '请求已创建'], ['ACCEPTED', '业务退款成功 · 渠道已接受'], ['NEEDS_REVIEW', '待核实'],
+  ['BLOCKED', '已拦截'], ['SUCCEEDED', '业务退款成功 · 渠道已结算'], ['FAILED', '退款失败'],
 ]
 const notificationOptions = [['', '全部通知状态'], ['NOT_REQUIRED', '尚无通知'], ['PENDING', '待发送'], ['RETRY', '重试中'], ['DELIVERED', '已送达']]
 

@@ -1,5 +1,7 @@
 package com.startrail.payment.operations.security;
 
+import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
+import com.startrail.payment.diagnostics.infrastructure.DiagnosticLogContext;
 import com.startrail.payment.shared.interfaces.ApiErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,12 +19,16 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 public class OperatorAccountStatusFilter extends OncePerRequestFilter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OperatorAccountStatusFilter.class);
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final DiagnosticIdGenerator diagnosticIdGenerator;
 
-    public OperatorAccountStatusFilter(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+    public OperatorAccountStatusFilter(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
+            DiagnosticIdGenerator diagnosticIdGenerator) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.diagnosticIdGenerator = diagnosticIdGenerator;
     }
 
     @Override
@@ -75,9 +83,11 @@ public class OperatorAccountStatusFilter extends OncePerRequestFilter {
     }
 
     private void writeError(HttpServletResponse response, int status, String code, String message) throws IOException {
+        String diagnosticId = diagnosticIdGenerator.generate();
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
-        objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse(code, message, Instant.now()));
+        DiagnosticLogContext.record(LOGGER, diagnosticId, code, status, null);
+        objectMapper.writeValue(response.getOutputStream(), new ApiErrorResponse(code, message, Instant.now(), diagnosticId));
     }
 
     private record AccountState(boolean active, boolean expired) {}

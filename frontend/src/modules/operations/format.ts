@@ -31,6 +31,9 @@ const auditActions: Record<string, string> = {
   REGISTER_OPERATOR: '注册员工账号',
   CHECK_PAYMENT_RECONCILIATION: '执行支付核查',
   REFUND_CONFIRM_AND_SUBMIT: '确认并发起退款',
+  ACKNOWLEDGE_DIAGNOSTIC: '确认诊断事件',
+  ADD_DIAGNOSTIC_NOTE: '添加诊断备注',
+  RESOLVE_DIAGNOSTIC: '完成诊断处理',
 }
 
 const auditOutcomes: Record<string, string> = {
@@ -72,15 +75,24 @@ const reconciliationIssues: Record<string, string> = {
   NOTIFICATION_UNDELIVERED: '结果尚未送达星辙',
 }
 
+const reconciliationFailures: Record<string, string> = {
+  PROVIDER_RATE_LIMIT: 'Airwallex 查询频率受限',
+  PROVIDER_SERVER_ERROR: 'Airwallex 服务暂时异常',
+  PROVIDER_HTTP_ERROR: 'Airwallex 拒绝了查询请求',
+  PROVIDER_CONFIGURATION: 'Airwallex 服务配置异常',
+  PROVIDER_UNAVAILABLE_OR_INVALID_RESPONSE: 'Airwallex 暂不可用或返回内容无法识别',
+}
+
 export const reconciliationOutcomeLabel = (outcome: string): string => reconciliationOutcomes[outcome] ?? outcome
 export const reconciliationIssueLabel = (issue: string): string => reconciliationIssues[issue] ?? issue
+export const reconciliationFailureLabel = (failure: string): string => reconciliationFailures[failure] ?? '查询失败原因未分类'
 
 const refundLabels: Record<string, string> = {
   NOT_REQUESTED: '未收到指令',
   SUBMITTING: '提交中',
-  RECEIVED: '已受理',
-  ACCEPTED: '处理中',
-  SUCCEEDED: '退款成功',
+  RECEIVED: '退款请求已创建',
+  ACCEPTED: '业务退款成功 · 渠道已接受',
+  SUCCEEDED: '业务退款成功 · 渠道已结算',
   FAILED: '退款失败',
   NEEDS_REVIEW: '待人工核实',
   PENDING_OPERATOR_CONFIRMATION: '待支付侧管理员确认',
@@ -88,6 +100,13 @@ const refundLabels: Record<string, string> = {
 }
 
 export const refundLabel = (status: string): string => refundLabels[status] ?? status
+
+export const refundBusinessOutcomeLabel = (outcome: string): string => ({
+  PROCESSING: '退款处理中',
+  SUCCEEDED: '退款业务成功',
+  FAILED: '退款失败',
+  PENDING: '退款待核实',
+})[outcome] ?? outcome
 
 export const roleLabel = (role: OperatorRole): string => ({
   OWNER_READONLY: '项目所有者 · 只读',

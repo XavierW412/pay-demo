@@ -1,0 +1,188 @@
+name: startrail-observability
+
+services:
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    ports:
+      - "127.0.0.1:${OBS_OTLP_HTTP_HOST_PORT:-4318}:4318"
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - startrail-observability-alloy-data:/var/lib/alloy/data
+    networks:
+      - observability-internal
+    security_opt:
+      - no-new-privileges:true
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${OBS_PROMETHEUS_RETENTION:-15d}
+      - --web.listen-address=0.0.0.0:9090
+    ports:
+      - "127.0.0.1:${OBS_PROMETHEUS_HOST_PORT:-9091}:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts:/etc/prometheus/alerts:ro
+      - startrail-observability-prometheus-data:/prometheus
+    networks:
+      - observability-internal
+    security_opt:
+      - no-new-privileges:true
+
+  loki:
+    image: grafana/loki:3.7.8
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/loki.yaml
+    configs:
+      - source: loki-config
+        target: /etc/loki/loki.yaml
+    volumes:
+      - startrail-observability-loki-data:/loki
+    networks:
+      - observability-internal
+    security_opt:
+      - no-new-privileges:true
+
+  tempo:
+    image: grafana/tempo:3.0.3
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/tempo/tempo.yaml
+    configs:
+      - source: tempo-config
+        target: /etc/tempo/tempo.yaml
+    volumes:
+      - startrail-observability-tempo-data:/var/tempo
+    networks:
+      - observability-internal
+    security_opt:
+      - no-new-privileges:true
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_USER: ${OBS_GRAFANA_ADMIN_USER:-local-operator}
+      GF_SECURITY_ADMIN_PASSWORD: ${OBS_GRAFANA_ADMIN_PASSWORD:?Set OBS_GRAFANA_ADMIN_PASSWORD in .env.observability}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+      GF_SERVER_HTTP_PORT: 3000
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "127.0.0.1:${OBS_GRAFANA_HOST_PORT:-3300}:3000"
+    volumes:
+      - startrail-observability-grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - observability-internal
+    security_opt:
+      - no-new-privileges:true
+
+configs:
+  loki-config:
+    content: |
+      auth_enabled: false
+      server:
+        http_listen_port: 3100
+        grpc_listen_port: 9096
+        log_level: info
+      common:
+        path_prefix: /loki
+        storage:
+          filesystem:
+            chunks_directory: /loki/chunks
+            rules_directory: /loki/rules
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+      schema_config:
+        configs:
+          - from: "2020-10-24"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      limits_config:
+        retention_period: ${OBS_LOKI_RETENTION:-168h}
+      compactor:
+        working_directory: /loki/compactor
+        compaction_interval: 10m
+        retention_enabled: true
+        retention_delete_delay: 2h
+        delete_request_store: filesystem
+      ingester:
+        wal:
+          enabled: true
+          dir: /loki/wal
+      analytics:
+        reporting_enabled: false
+  tempo-config:
+    content: |
+      target: all
+      multitenancy_enabled: false
+      server:
+        http_listen_address: 0.0.0.0
+        http_listen_port: 3200
+        grpc_listen_address: 0.0.0.0
+        grpc_listen_port: 9095
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+      storage:
+        trace:
+          backend: local
+          wal:
+            path: /var/tempo/wal
+          local:
+            path: /var/tempo/blocks
+      backend_scheduler:
+        provider:
+          compaction:
+            compaction:
+              block_retention: 168h
+      backend_worker:
+        compaction:
+          block_retention: 168h
+      usage_report:
+        reporting_enabled: false
+
+networks:
+  observability-internal:
+    name: startrail-observability-internal
+    internal: true
+
+volumes:
+  startrail-observability-alloy-data:
+    name: startrail-observability-alloy-data
+  startrail-observability-prometheus-data:
+    name: startrail-observability-prometheus-data
+  startrail-observability-loki-data:
+    name: startrail-observability-loki-data
+  startrail-observability-tempo-data:
+    name: startrail-observability-tempo-data
+  startrail-observability-grafana-data:
+    name: startrail-observability-grafana-data

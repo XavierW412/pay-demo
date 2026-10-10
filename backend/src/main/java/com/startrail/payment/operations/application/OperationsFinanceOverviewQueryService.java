@@ -39,7 +39,10 @@ public class OperationsFinanceOverviewQueryService {
             var refund = refunds.getOrDefault(currency, RefundSummary.empty());
             return new CurrencySummary(currency, payment.amount().toPlainString(), payment.count(),
                     refund.awaitingConfirmation().toPlainString(), refund.processing().toPlainString(),
-                    refund.succeeded().toPlainString(), refund.blockedCount(),
+                    refund.businessSucceeded().toPlainString(),
+                    refund.channelPendingSettlement().toPlainString(),
+                    refund.channelSettled().toPlainString(), refund.businessSucceeded().toPlainString(),
+                    refund.blockedCount(),
                     paymentExceptions.getOrDefault(currency, 0L), refundExceptions.getOrDefault(currency, 0L),
                     "NOT_CONNECTED", null, null);
         }).toList();
@@ -64,8 +67,10 @@ public class OperationsFinanceOverviewQueryService {
         return jdbcTemplate.query("""
                 SELECT r.currency,
                        COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'PENDING_OPERATOR_CONFIRMATION'), 0) AS awaiting_amount,
-                       COALESCE(SUM(r.amount) FILTER (WHERE r.status IN ('SUBMITTING', 'RECEIVED', 'ACCEPTED', 'NEEDS_REVIEW')), 0) AS processing_amount,
-                       COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'SUCCEEDED'), 0) AS succeeded_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status IN ('SUBMITTING', 'RECEIVED', 'NEEDS_REVIEW')), 0) AS processing_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status IN ('ACCEPTED', 'SUCCEEDED')), 0) AS business_succeeded_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'ACCEPTED'), 0) AS channel_pending_settlement_amount,
+                       COALESCE(SUM(r.amount) FILTER (WHERE r.status = 'SUCCEEDED'), 0) AS channel_settled_amount,
                        COUNT(*) FILTER (WHERE r.status IN ('BLOCKED', 'NEEDS_REVIEW')) AS blocked_count
                 FROM refund_order r
                 JOIN payment_order p ON p.id = r.payment_order_id
@@ -73,7 +78,9 @@ public class OperationsFinanceOverviewQueryService {
                 GROUP BY r.currency
                 """, (rs, row) -> Map.entry(rs.getString("currency"),
                 new RefundSummary(rs.getBigDecimal("awaiting_amount"), rs.getBigDecimal("processing_amount"),
-                        rs.getBigDecimal("succeeded_amount"), rs.getLong("blocked_count"))),
+                        rs.getBigDecimal("business_succeeded_amount"),
+                        rs.getBigDecimal("channel_pending_settlement_amount"),
+                        rs.getBigDecimal("channel_settled_amount"), rs.getLong("blocked_count"))),
                 java.sql.Timestamp.from(start), java.sql.Timestamp.from(end))
                 .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
@@ -110,15 +117,19 @@ public class OperationsFinanceOverviewQueryService {
     }
 
     private record RefundSummary(BigDecimal awaitingConfirmation, BigDecimal processing,
-            BigDecimal succeeded, long blockedCount) {
+            BigDecimal businessSucceeded, BigDecimal channelPendingSettlement,
+            BigDecimal channelSettled, long blockedCount) {
         private static RefundSummary empty() {
-            return new RefundSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0);
+            return new RefundSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, BigDecimal.ZERO, 0);
         }
     }
 
     public record CurrencySummary(String currency, String paymentSucceededAmount, long paymentSucceededCount,
             String refundAwaitingConfirmationAmount, String refundProcessingAmount,
-            String refundSucceededAmount, long blockedRefundCount, long paymentExceptionCount,
+            String refundBusinessSucceededAmount, String refundChannelPendingSettlementAmount,
+            String refundChannelSettledAmount, String refundSucceededAmount,
+            long blockedRefundCount, long paymentExceptionCount,
             long refundExceptionCount, String settlementStatus, String settlementAmount, String settlementFee) {
     }
 

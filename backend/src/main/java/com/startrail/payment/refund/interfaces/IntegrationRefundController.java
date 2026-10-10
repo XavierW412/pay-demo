@@ -1,10 +1,14 @@
 package com.startrail.payment.refund.interfaces;
 
+import com.startrail.payment.diagnostics.application.DiagnosticIdGenerator;
+import com.startrail.payment.diagnostics.infrastructure.DiagnosticLogContext;
 import com.startrail.payment.integrations.startrail.IntegrationSignatureVerifier;
 import com.startrail.payment.refund.application.RefundExecutionService;
 import com.startrail.payment.refund.application.RefundRequestException;
 import com.startrail.payment.shared.interfaces.ApiErrorResponse;
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,13 +24,16 @@ import tools.jackson.databind.ObjectMapper;
 @RestController
 @RequestMapping("/api/v1/integration/refunds")
 public class IntegrationRefundController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(IntegrationRefundController.class);
     private final IntegrationSignatureVerifier signatureVerifier;
     private final RefundExecutionService executionService;
     private final ObjectMapper objectMapper;
     private final String refundInboundSecret;
+    private final DiagnosticIdGenerator diagnosticIdGenerator;
 
     public IntegrationRefundController(IntegrationSignatureVerifier signatureVerifier,
             RefundExecutionService executionService, ObjectMapper objectMapper,
+            DiagnosticIdGenerator diagnosticIdGenerator,
             @Value("${startrail.integration.refund-inbound-secret}") String refundInboundSecret,
             @Value("${startrail.integration.inbound-secret}") String paymentInboundSecret,
             @Value("${startrail.integration.outbound-secret}") String notificationSecret) {
@@ -38,6 +45,7 @@ public class IntegrationRefundController {
         this.executionService = executionService;
         this.objectMapper = objectMapper;
         this.refundInboundSecret = refundInboundSecret;
+        this.diagnosticIdGenerator = diagnosticIdGenerator;
     }
 
     @PostMapping
@@ -61,7 +69,10 @@ public class IntegrationRefundController {
 
     @ExceptionHandler(RefundRequestException.class)
     public ResponseEntity<ApiErrorResponse> handleRefundError(RefundRequestException exception) {
+        String diagnosticId = diagnosticIdGenerator.generate();
+        DiagnosticLogContext.record(LOGGER, diagnosticId, exception.getClass().getSimpleName(),
+                exception.httpStatus().value(), exception);
         return ResponseEntity.status(exception.httpStatus())
-                .body(new ApiErrorResponse(exception.code(), exception.getMessage(), Instant.now()));
+                .body(new ApiErrorResponse(exception.code(), exception.getMessage(), Instant.now(), diagnosticId));
     }
 }

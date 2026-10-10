@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <conversionRule conversionWord="safeJsonField" converterClass="com.startrail.payment.diagnostics.infrastructure.SafeJsonLogFieldConverter"/>
+    <springProperty scope="context" name="serviceName" source="spring.application.name" defaultValue="startrail-payment"/>
+    <springProperty scope="context" name="environment" source="spring.profiles.active" defaultValue="default"/>
+
+    <!-- 固定字段白名单：不输出任意日志消息、异常堆栈、请求头或正文。 -->
+    <appender name="SAFE_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>{"time":"%date{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","level":"%level","service":"%safeJsonField{service}","environment":"%safeJsonField{environment}","requestId":"%safeJsonField{requestId}","traceId":"%safeJsonField{traceId}","diagnosticId":"%safeJsonField{diagnosticId}","routeTemplate":"%safeJsonField{routeTemplate}","httpStatus":"%safeJsonField{httpStatus}","exceptionClass":"%safeJsonField{exceptionClass}","stackFrames":"%safeJsonField{stackFrames}"}%nopex%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="SAFE_CONSOLE"/>
+    </root>
+</configuration>

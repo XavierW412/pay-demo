@@ -11,6 +11,7 @@ const daysBetween = (from: string, to: string): number => Math.floor((Date.parse
 const actionOptions = [
   ['', '全部操作'], ['REFRESH_PROVIDER_STATUS', '核实支付状态'], ['REFRESH_REFUND_STATUS', '核实退款状态'],
   ['RETRY_NOTIFICATION', '重试星辙通知'], ['ADD_EXCEPTION_NOTE', '添加处理备注'], ['REFUND_CONFIRM_AND_SUBMIT', '确认并发起退款'],
+  ['ACKNOWLEDGE_DIAGNOSTIC', '确认诊断事件'], ['ADD_DIAGNOSTIC_NOTE', '添加诊断备注'], ['RESOLVE_DIAGNOSTIC', '完成诊断处理'],
   ['INVITE_OPERATOR', '创建员工邀请'], ['REVOKE_OPERATOR_INVITATION', '撤销员工邀请'], ['DISABLE_OPERATOR', '停用员工账号'], ['RESTORE_OPERATOR', '恢复员工账号'],
 ]
 const outcomeOptions = [['', '全部结果'], ['SUCCEEDED', '成功'], ['FAILED', '失败'], ['BLOCKED', '已拦截'], ['REJECTED', '已拒绝'], ['CONFIRMED', '已确认'], ['NOT_FOUND', '未找到'], ['MISMATCH', '不匹配'], ['PROVIDER_UNAVAILABLE', '服务商暂不可用']]

@@ -1,0 +1,29 @@
+// Current IDE console output is intentionally not collected. The application
+// has no safe JSON log file input, and this pipeline must not discover Docker
+// containers or read the Docker socket.
+
+otelcol.receiver.otlp "payment_service" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.payment_service.input]
+  }
+}
+
+otelcol.processor.batch "payment_service" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+
+    tls {
+      insecure = true
+    }
+  }
+}

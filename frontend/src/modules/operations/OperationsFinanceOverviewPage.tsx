@@ -59,7 +59,7 @@ function CurrencyPanel({ summary }: { summary: FinanceCurrencySummary }) {
       </div>
       <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">Airwallex</span>
     </div>
-    <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-5">
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">支付成功金额</p>
         <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.paymentSucceededAmount, summary.currency)}</p>
@@ -71,9 +71,15 @@ function CurrencyPanel({ summary }: { summary: FinanceCurrencySummary }) {
         <p className="mt-2 text-xs text-muted-foreground">按退款指令创建日期筛选当前待确认、处理中状态</p>
       </div>
       <div className="bg-card p-5">
-        <p className="text-xs text-muted-foreground">退款执行成功</p>
-        <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.refundSucceededAmount, summary.currency)}</p>
-        <p className="mt-2 text-xs text-muted-foreground">按退款指令创建日期筛选当前成功状态；结算抵扣待报表核对</p>
+        <p className="text-xs text-muted-foreground">业务退款成功</p>
+        <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.refundBusinessSucceededAmount, summary.currency)}</p>
+        <p className="mt-2 text-xs text-muted-foreground">Airwallex 已接受及已结算退款的业务成功总额</p>
+      </div>
+      <div className="bg-card p-5">
+        <p className="text-xs text-muted-foreground">渠道结算进度</p>
+        <p className="mt-2 text-sm font-medium">待结算 {formatMoney(summary.refundChannelPendingSettlementAmount, summary.currency)}</p>
+        <p className="mt-1 text-sm font-medium">已结算 {formatMoney(summary.refundChannelSettledAmount, summary.currency)}</p>
+        <p className="mt-2 text-xs text-muted-foreground">两项是业务退款成功金额的分项，不应再相加</p>
       </div>
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">需要关注</p>

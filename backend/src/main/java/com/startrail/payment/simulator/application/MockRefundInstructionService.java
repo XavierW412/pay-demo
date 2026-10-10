@@ -64,13 +64,20 @@ public class MockRefundInstructionService {
             return existing;
         }
         return transactions.execute(transaction -> {
+            lockRefundOrder(businessOrderId);
             jdbcTemplate.query("SELECT pg_advisory_xact_lock(hashtextextended(?::text, 0))",
-                    rs -> { rs.next(); return null; }, requestId);
+                    rs -> { rs.next(); return null; }, "mock-refund-request:" + requestId);
             var lockedOrder = requireRefundableOrder(businessOrderId);
             var repeated = findRequest(requestId);
             if (repeated != null) {
                 requireSameRequest(repeated, businessOrderId, amount, lockedOrder.currency(), reason);
                 return repeated;
+            }
+            var reservedAmount = reservedAmount(businessOrderId);
+            if (reservedAmount.add(amount).compareTo(lockedOrder.amount()) > 0) {
+                var remaining = lockedOrder.amount().subtract(reservedAmount).max(BigDecimal.ZERO);
+                throw new InvalidMockPaymentEventException("累计退款金额不能超过订单金额，当前可申请退款金额为 "
+                        + remaining.setScale(2).toPlainString() + " " + lockedOrder.currency());
             }
             jdbcTemplate.update("""
                     INSERT INTO mock_xingzhe_refund_request(
@@ -81,6 +88,20 @@ public class MockRefundInstructionService {
                     java.sql.Timestamp.from(Instant.now()));
             return findRequest(requestId);
         });
+    }
+
+    private void lockRefundOrder(String businessOrderId) {
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(hashtextextended(?::text, 0))",
+                rs -> { rs.next(); return null; }, "mock-refund-order:" + businessOrderId);
+    }
+
+    private BigDecimal reservedAmount(String businessOrderId) {
+        var amount = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(amount), 0) FROM mock_xingzhe_refund_request
+                WHERE business_order_id = ? AND business_decision <> 'REJECTED'
+                    AND payment_service_status NOT IN ('FAILED', 'BLOCKED')
+                """, BigDecimal.class, businessOrderId);
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     public RefundResponse approveAndSend(String businessOrderId, String refundRequestId) {
@@ -152,7 +173,9 @@ public class MockRefundInstructionService {
                 .orElseThrow(MockBusinessOrderNotFoundException::new);
         return jdbcTemplate.query("""
                 SELECT refund_request_id, business_order_id, amount, currency, reason,
-                       business_decision, payment_service_status, payment_refund_id,
+                       business_decision, payment_service_status, business_outcome, provider_status,
+                       raw_provider_status,
+                       payment_refund_id,
                        created_at, decided_at, last_sent_at
                 FROM mock_xingzhe_refund_request
                 WHERE business_order_id = ?
@@ -161,7 +184,9 @@ public class MockRefundInstructionService {
                 rs.getString("refund_request_id"), rs.getString("business_order_id"),
                 rs.getBigDecimal("amount").toPlainString(), rs.getString("currency"),
                 rs.getString("reason"), rs.getString("business_decision"),
-                rs.getString("payment_service_status"), rs.getString("payment_refund_id"),
+                rs.getString("payment_service_status"), rs.getString("business_outcome"),
+                rs.getString("provider_status"), rs.getString("raw_provider_status"),
+                rs.getString("payment_refund_id"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("decided_at") == null ? null : rs.getTimestamp("decided_at").toInstant(),
                 rs.getTimestamp("last_sent_at") == null ? null : rs.getTimestamp("last_sent_at").toInstant()),
@@ -172,12 +197,16 @@ public class MockRefundInstructionService {
         orders.findByBusinessOrderId(businessOrderId)
                 .orElseThrow(MockBusinessOrderNotFoundException::new);
         return jdbcTemplate.query("""
-                SELECT refund_request_id, provider_refund_id, status, amount, currency, received_at
+                SELECT refund_request_id, provider_refund_id, status, business_outcome,
+                       execution_status, provider_status, raw_provider_status, amount, currency, received_at
                 FROM mock_xingzhe_refund_event WHERE business_order_id = ?
                 ORDER BY received_at DESC, event_id DESC LIMIT 100
                 """, (rs, rowNum) -> new RefundEventRow(
                 rs.getString("refund_request_id"), rs.getString("provider_refund_id"),
-                rs.getString("status"), rs.getBigDecimal("amount").toPlainString(),
+                rs.getString("status"), rs.getString("business_outcome"),
+                rs.getString("execution_status"), rs.getString("provider_status"),
+                rs.getString("raw_provider_status"),
+                rs.getBigDecimal("amount").toPlainString(),
                 rs.getString("currency"), rs.getTimestamp("received_at").toInstant()), businessOrderId);
     }
 
@@ -194,14 +223,18 @@ public class MockRefundInstructionService {
     private RefundRequestRow findRequest(String requestId) {
         return jdbcTemplate.query("""
                 SELECT refund_request_id, business_order_id, amount, currency, reason,
-                       business_decision, payment_service_status, payment_refund_id,
+                       business_decision, payment_service_status, business_outcome, provider_status,
+                       raw_provider_status,
+                       payment_refund_id,
                        created_at, decided_at, last_sent_at
                 FROM mock_xingzhe_refund_request WHERE refund_request_id = ?
                 """, (rs, rowNum) -> new RefundRequestRow(
                 rs.getString("refund_request_id"), rs.getString("business_order_id"),
                 rs.getBigDecimal("amount").toPlainString(), rs.getString("currency"),
                 rs.getString("reason"), rs.getString("business_decision"),
-                rs.getString("payment_service_status"), rs.getString("payment_refund_id"),
+                rs.getString("payment_service_status"), rs.getString("business_outcome"),
+                rs.getString("provider_status"), rs.getString("raw_provider_status"),
+                rs.getString("payment_refund_id"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("decided_at") == null ? null : rs.getTimestamp("decided_at").toInstant(),
                 rs.getTimestamp("last_sent_at") == null ? null : rs.getTimestamp("last_sent_at").toInstant()),
@@ -211,14 +244,18 @@ public class MockRefundInstructionService {
     private RefundRequestRow lockRequest(String requestId) {
         return jdbcTemplate.query("""
                 SELECT refund_request_id, business_order_id, amount, currency, reason,
-                       business_decision, payment_service_status, payment_refund_id,
+                       business_decision, payment_service_status, business_outcome, provider_status,
+                       raw_provider_status,
+                       payment_refund_id,
                        created_at, decided_at, last_sent_at
                 FROM mock_xingzhe_refund_request WHERE refund_request_id = ? FOR UPDATE
                 """, (rs, rowNum) -> new RefundRequestRow(
                 rs.getString("refund_request_id"), rs.getString("business_order_id"),
                 rs.getBigDecimal("amount").toPlainString(), rs.getString("currency"),
                 rs.getString("reason"), rs.getString("business_decision"),
-                rs.getString("payment_service_status"), rs.getString("payment_refund_id"),
+                rs.getString("payment_service_status"), rs.getString("business_outcome"),
+                rs.getString("provider_status"), rs.getString("raw_provider_status"),
+                rs.getString("payment_refund_id"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("decided_at") == null ? null : rs.getTimestamp("decided_at").toInstant(),
                 rs.getTimestamp("last_sent_at") == null ? null : rs.getTimestamp("last_sent_at").toInstant()),
@@ -241,6 +278,7 @@ public class MockRefundInstructionService {
 
     public record RefundEventRow(
             String refundRequestId, String providerRefundId, String status,
+            String businessOutcome, String executionStatus, String providerStatus, String rawProviderStatus,
             String amount, String currency, Instant receivedAt) {
     }
 }

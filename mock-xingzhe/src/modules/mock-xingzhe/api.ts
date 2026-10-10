@@ -84,6 +84,10 @@ export interface MockRefundEvent {
   refundRequestId: string
   providerRefundId: string | null
   status: string
+  businessOutcome: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'PENDING' | null
+  executionStatus: string | null
+  providerStatus: string | null
+  rawProviderStatus: string | null
   amount: string
   currency: string
   receivedAt: string

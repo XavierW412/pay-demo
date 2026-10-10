@@ -9,19 +9,48 @@ spring:
     enabled: true
 
 management:
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+    address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  tracing:
+    propagation:
+      produce: []
+    export:
+      otlp:
+        enabled: ${MANAGEMENT_TRACING_EXPORT_OTLP_ENABLED:false}
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.0}
+  opentelemetry:
+    tracing:
+      sampler: ${MANAGEMENT_OPENTELEMETRY_TRACING_SAMPLER:parent-based-trace-id-ratio}
+      export:
+        otlp:
+          endpoint: ${MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          transport: ${MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_TRANSPORT:http}
+
+diagnostics:
+  telemetry:
+    queue-refresh-delay-ms: ${DIAGNOSTICS_TELEMETRY_QUEUE_REFRESH_DELAY_MS:60000}
 
 server:
   shutdown: graceful
+  forward-headers-strategy: none
   error:
     include-message: never
+    include-stacktrace: never
+    include-exception: false
   servlet:
     session:
       timeout: 30m

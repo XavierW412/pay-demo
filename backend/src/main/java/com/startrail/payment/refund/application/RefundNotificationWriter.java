@@ -18,12 +18,17 @@ public class RefundNotificationWriter {
     }
 
     public void enqueue(RefundRecord refund) {
-        var eventId = "refund:" + refund.id() + ":" + refund.status();
+        var rawProviderStatus = refund.providerStatus();
+        var providerStatus = normalizeProviderStatus(rawProviderStatus);
+        var businessOutcome = businessOutcome(refund.status());
+        var eventId = "refund:" + refund.id() + ":" + businessOutcome + ":" + refund.status()
+                + ":" + (rawProviderStatus == null ? "NONE" : rawProviderStatus);
         var eventType = "refund.status_changed";
         var now = Instant.now();
         var notification = new RefundNotification(eventId, eventType,
                 refund.refundRequestId(), refund.id(), refund.paymentOrderId(),
-                refund.businessOrderId(), refund.providerRefundId(), refund.status(),
+                refund.businessOrderId(), refund.providerRefundId(), businessOutcome, refund.status(),
+                providerStatus, rawProviderStatus,
                 refund.amount(), refund.currency(), now);
         final String payload;
         try {
@@ -40,6 +45,19 @@ public class RefundNotificationWriter {
                 Timestamp.from(now), Timestamp.from(now));
     }
 
+    private static String businessOutcome(String executionStatus) {
+        return switch (executionStatus) {
+            case "ACCEPTED", "SUCCEEDED" -> "SUCCEEDED";
+            case "FAILED" -> "FAILED";
+            case "SUBMITTING", "RECEIVED" -> "PROCESSING";
+            default -> "PENDING";
+        };
+    }
+
+    private static String normalizeProviderStatus(String providerStatus) {
+        return "SUCCEEDED".equals(providerStatus) ? "SETTLED" : providerStatus;
+    }
+
     private record RefundNotification(
             String eventId,
             String eventType,
@@ -48,7 +66,10 @@ public class RefundNotificationWriter {
             java.util.UUID paymentOrderId,
             String businessOrderId,
             String providerRefundId,
+            String businessOutcome,
             String status,
+            String providerStatus,
+            String rawProviderStatus,
             java.math.BigDecimal amount,
             String currency,
             Instant occurredAt) {

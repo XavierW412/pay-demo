@@ -86,6 +86,10 @@ export interface MockRefundEvent {
   refundRequestId: string
   providerRefundId: string | null
   status: string
+  businessOutcome: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'PENDING' | null
+  executionStatus: string | null
+  providerStatus: string | null
+  rawProviderStatus: string | null
   amount: string
   currency: string
   receivedAt: string
@@ -100,6 +104,9 @@ export interface MockRefundRequests {
     reason: string | null
     businessDecision: 'REQUESTED' | 'APPROVED' | 'REJECTED'
     paymentServiceStatus: string
+    businessOutcome: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'PENDING' | null
+    providerStatus: string | null
+    rawProviderStatus: string | null
     paymentRefundId: string | null
     createdAt: string
     decidedAt: string | null

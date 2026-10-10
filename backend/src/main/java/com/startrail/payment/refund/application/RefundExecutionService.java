@@ -1,5 +1,6 @@
 package com.startrail.payment.refund.application;
 
+import com.startrail.payment.diagnostics.infrastructure.PaymentTelemetry;
 import com.startrail.payment.operations.application.OperatorAuditService;
 import com.startrail.payment.payment.application.PaymentOrderRepository;
 import com.startrail.payment.payment.domain.PaymentOrder;
@@ -26,20 +27,26 @@ public class RefundExecutionService {
     private final RefundStateService stateService;
     private final OperatorAuditService auditService;
     private final TransactionTemplate transactions;
+    private final PaymentTelemetry telemetry;
 
     public RefundExecutionService(PaymentOrderRepository paymentOrders, RefundJdbcRepository refunds,
             AirwallexRefundGateway airwallex, RefundStateService stateService,
-            OperatorAuditService auditService, TransactionTemplate transactions) {
+            OperatorAuditService auditService, TransactionTemplate transactions, PaymentTelemetry telemetry) {
         this.paymentOrders = paymentOrders;
         this.refunds = refunds;
         this.airwallex = airwallex;
         this.stateService = stateService;
         this.auditService = auditService;
         this.transactions = transactions;
+        this.telemetry = telemetry;
     }
 
     /** Receives a Startrail-approved instruction, checks it and reserves the amount without calling Airwallex. */
     public ExecutionResult receive(CreateRefundRequest request) {
+        return observeRefundExecution(() -> receiveObserved(request));
+    }
+
+    private ExecutionResult receiveObserved(CreateRefundRequest request) {
         validateRequest(request);
         var existing = refunds.findByRequestId(request.refundRequestId());
         if (existing.isPresent()) {
@@ -73,6 +80,10 @@ public class RefundExecutionService {
 
     /** Only the operations administrator path calls this method. It rechecks, claims, then submits once. */
     public ExecutionResult confirmAndSubmit(UUID refundId, String username) {
+        return observeRefundExecution(() -> confirmAndSubmitObserved(refundId, username));
+    }
+
+    private ExecutionResult confirmAndSubmitObserved(UUID refundId, String username) {
         var current = refunds.findById(refundId)
                 .orElseThrow(() -> invalid("退款记录不存在"));
         if (!"PENDING_OPERATOR_CONFIRMATION".equals(current.status())) {
@@ -139,6 +150,43 @@ public class RefundExecutionService {
             stateService.markNeedsReview(refundId, "退款请求结果未知，等待 Airwallex 核实");
             return new ExecutionResult(refunds.findById(refundId).orElseThrow(), true);
         }
+    }
+
+    private ExecutionResult observeRefundExecution(java.util.function.Supplier<ExecutionResult> action) {
+        try {
+            var result = telemetry.observe(PaymentTelemetry.Operation.REFUND_EXECUTION, action);
+            telemetry.increment(PaymentTelemetry.CounterMetric.REFUND_EXECUTION, refundExecutionResult(result));
+            return result;
+        } catch (RuntimeException exception) {
+            if (exception instanceof RefundRequestException requestException
+                    && ("REFUND_NOT_AWAITING_CONFIRMATION".equals(requestException.code())
+                    || "REFUND_CONFIRMATION_CONFLICT".equals(requestException.code()))) {
+                telemetry.increment(PaymentTelemetry.CounterMetric.REFUND_EXECUTION, PaymentTelemetry.Result.IGNORED);
+                throw exception;
+            }
+            telemetry.increment(PaymentTelemetry.CounterMetric.REFUND_EXECUTION, PaymentTelemetry.Result.FAILURE);
+            throw exception;
+        }
+    }
+
+    private PaymentTelemetry.Result refundExecutionResult(ExecutionResult result) {
+        var status = result.refund().status();
+        if ("BLOCKED".equals(status)) {
+            return PaymentTelemetry.Result.FAILURE;
+        }
+        if (!result.created()) {
+            return PaymentTelemetry.Result.IGNORED;
+        }
+        if ("FAILED".equals(status)) {
+            return PaymentTelemetry.Result.FAILURE;
+        }
+        if ("ACCEPTED".equals(status) || "SUCCEEDED".equals(status)) {
+            return PaymentTelemetry.Result.VERIFIED;
+        }
+        if ("PENDING_OPERATOR_CONFIRMATION".equals(status)) {
+            return PaymentTelemetry.Result.IGNORED;
+        }
+        return PaymentTelemetry.Result.UNKNOWN;
     }
 
     private Reservation reserve(CreateRefundRequest request, BigDecimal capturedAmount, String initialMismatch) {

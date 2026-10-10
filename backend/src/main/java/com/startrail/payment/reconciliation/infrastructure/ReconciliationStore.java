@@ -63,6 +63,14 @@ public class ReconciliationStore {
     }
 
     public Optional<UUID> claim(UUID paymentOrderId) {
+        return claim(paymentOrderId, false);
+    }
+
+    public Optional<UUID> claimForOperator(UUID paymentOrderId) {
+        return claim(paymentOrderId, true);
+    }
+
+    private Optional<UUID> claim(UUID paymentOrderId, boolean allowEarlyCheck) {
         jdbcTemplate.update("""
                 INSERT INTO payment_reconciliation_cursor(payment_order_id, next_check_at)
                 VALUES (?, now()) ON CONFLICT (payment_order_id) DO NOTHING
@@ -71,11 +79,11 @@ public class ReconciliationStore {
         var claimed = jdbcTemplate.update("""
                 UPDATE payment_reconciliation_cursor
                 SET lease_until = now() + INTERVAL '10 minutes', lease_token = ?
-                WHERE payment_order_id = ? AND next_check_at <= now()
+                WHERE payment_order_id = ? AND (? OR next_check_at <= now())
                   AND (lease_until IS NULL OR lease_until < now())
                   AND EXISTS (SELECT 1 FROM payment_order p
                               WHERE p.id = payment_order_id AND p.payment_provider = 'AIRWALLEX')
-                """, leaseToken, paymentOrderId) == 1;
+                """, leaseToken, paymentOrderId, allowEarlyCheck) == 1;
         return claimed ? Optional.of(leaseToken) : Optional.empty();
     }
 

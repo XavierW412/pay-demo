@@ -236,12 +236,12 @@ Airwallex 当前退款管理文档列出 `RECEIVED`、`ACCEPTED`、`SETTLED`、`
 | 服务商状态/情形 | 本项目处理 | 额度与星辙通知 |
 | --- | --- | --- |
 | `RECEIVED` | `PROCESSING` | 保留退款额度；通知星辙处理中 |
-| `ACCEPTED` | 依版本语义保存为处理中/服务商已接受 | 保留额度；不能说资金已进入结算报告 |
-| `SETTLED` 或该版本定义的 `SUCCEEDED` | 本项目 `SUCCEEDED` | 保留服务商原值；通知星辙退款已核实；仍不代表银行账户已入账 |
+| `ACCEPTED` | 本项目 `ACCEPTED`，业务结果 `SUCCEEDED` | 立即通知星辙业务退款成功；继续查询后续渠道结算状态 |
+| `SETTLED` 或该版本定义的 `SUCCEEDED` | 本项目本地兼容状态 `SUCCEEDED`，业务结果仍为 `SUCCEEDED` | 发送可去重的渠道结算进展；不重复触发业务完成，也不代表银行账户已入账 |
 | `FAILED` | 本项目 `FAILED` | 核对失败终态后释放相应额度并通知星辙 |
 | 创建超时、查询失败、事件不匹配、状态未识别 | `NEEDS_REVIEW` | 继续保留额度；按 Refund ID 或原 Payment Intent + 原 request_id 查找；不得生成新 request_id 再提交 |
 
-本地与线上各有状态来源：Airwallex Refund 查询/事件是服务商退款事实；本项目退款记录保存核实后的映射；星辙事件只更新星辙退款历史。支付状态、退款状态、通知投递和结算到账不能合并成一个状态。
+本地与线上各有状态来源：Airwallex Refund 查询/事件是服务商退款事实；本项目退款记录保存核实后的映射；星辙事件只更新星辙退款历史。支付状态、退款业务结果、支付项目处理阶段、Airwallex 原始状态、通知投递和结算到账不能合并成一个状态。
 
 ### 6.4 支付项目通知星辙退款结果
 
@@ -249,21 +249,25 @@ Airwallex 当前退款管理文档列出 `RECEIVED`、`ACCEPTED`、`SETTLED`、`
 
 ```json
 {
-  "eventId": "refund:refund-uuid:SUCCEEDED",
+  "eventId": "refund:refund-uuid:SUCCEEDED:ACCEPTED:ACCEPTED",
   "eventType": "refund.status_changed",
   "refundRequestId": "XZ-REFUND-20261010-000001",
   "refundId": "refund-uuid",
   "paymentOrderId": "2f0b1234-5678-4abc-9def-0123456789ab",
   "businessOrderId": "XZ-ORDER-20261010-000001",
   "providerRefundId": "rfd_example",
-  "status": "SUCCEEDED",
+  "businessOutcome": "SUCCEEDED",
+  "executionStatus": "ACCEPTED",
+  "providerStatus": "ACCEPTED",
+  "rawProviderStatus": "ACCEPTED",
+  "status": "ACCEPTED",
   "amount": 20.00,
   "currency": "CNY",
   "occurredAt": "2026-10-10T02:10:00Z"
 }
 ```
 
-星辙按 `eventId` 去重并把事件附加到相应业务订单退款历史。投递成功不代表星辙已完成其业务退款记录更新，除非星辙提供并确认处理回执。
+`businessOutcome` 是星辙业务结果，`executionStatus` 是支付项目阶段，`providerStatus` 是归一后的 Airwallex 状态，`rawProviderStatus` 保留服务商原始值；旧 `status` 字段作为 `executionStatus` 的兼容别名。`ACCEPTED` 与后续 `SETTLED` 的事件编号不同，同一状态重试编号稳定。星辙按 `eventId` 去重并把事件附加到相应业务订单退款历史；其退款业务在 `ACCEPTED` 后即可显示成功，后续 `SETTLED` 只更新渠道进度。投递成功不代表星辙已完成其业务退款记录更新，除非星辙提供并确认处理回执。
 
 ## 7. 失败与恢复契约
 

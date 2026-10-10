@@ -57,6 +57,9 @@ startrail-payment/
 startrail-payment/
 ├── AGENTS.md                         # AI 协作入口、读取顺序和项目级约束
 ├── README.md                         # 人类开发者入口、本地启动和常用命令
+├── compose.observability.yaml       # 独立本地观测栈；不与支付数据库卷合并
+├── .env.observability.example       # 本地监控凭证和端口示例
+├── observability/                   # Alloy、Prometheus、Grafana 静态配置
 ├── .editorconfig                     # 编辑器基础格式
 ├── .gitignore
 ├── frontend/                         # React + TypeScript 运营后台
@@ -80,7 +83,8 @@ startrail-payment/
 │       │   ├── team/
 │       │   └── audit/
 │       ├── shared/                   # 确认跨模块复用的组件和技术能力
-│       │   └── components/           # 跨模块复用的业务组件
+│       │   ├── components/           # 跨模块复用的业务组件
+│       │   └── diagnostics/          # 前端事件上报和错误提示
 │       ├── assets/
 │       └── styles/                   # Tailwind 主入口、CSS 变量和项目主题令牌
 ├── mock-xingzhe/                     # 仅本地开发使用的独立模拟星辙前端
@@ -104,6 +108,7 @@ startrail-payment/
 │       │   │   ├── notification/
 │       │   │   ├── reconciliation/
 │       │   │   ├── operations/
+│       │   │   ├── diagnostics/       # 事件、请求关联、指标与追踪
 │       │   │   ├── identity/
 │       │   │   ├── audit/
 │       │   │   ├── integrations/
@@ -111,6 +116,7 @@ startrail-payment/
 │       │   └── resources/
 │       │       ├── application.yml
 │       │       ├── application-local.yml
+│       │       ├── logback-spring.xml     # 固定字段安全 JSON 控制台日志
 │       │       ├── application-production.yml
 │       │       ├── db/migration/          # 全环境数据库结构
 │       │       └── db/migration-local/    # 仅本地模拟数据库结构
@@ -124,6 +130,7 @@ startrail-payment/
 │   │   ├── payment/
 │   │   ├── refund/
 │   │   ├── notification/
+│   │   ├── operations/observability-diagnostics.md
 │   │   └── reconciliation/
 │   ├── engineering/
 │   │   ├── code-style.md
@@ -181,6 +188,7 @@ payment/
 - `payment`、`refund`、`notification`、`reconciliation` 分别管理支付、退款执行、结果通知和资金核对。
 - `identity` 和 `audit` 负责员工身份权限及操作留痕。
 - `integrations` 隔离星辙和 Airwallex 外部协议；业务规则不写进外部适配器。
+- `diagnostics` 保存技术事件和处理历史，提供关联编号、受限前端上报及聚合监控；不拥有支付或退款状态。
 - 模块不直接访问其他模块的 Repository 或内部表；通过明确的业务接口协作。
 
 ## 7. 增删目录的规则
@@ -192,4 +200,4 @@ payment/
 5. 文件或目录改名后，更新本文件、根目录 AI 阅读入口和相关链接。
 6. 业务模块边界变化同步更新架构文档；依赖选型变化只更新技术栈清单。
 
-- `checkout/config/TrustedCheckoutRedirectConfiguration` 负责可信公开入口与星辙返回模板；公共迁移当前已到 V118，新增迁移从 V119 顺延。
+- `checkout/config/TrustedCheckoutRedirectConfiguration` 负责可信公开入口与星辙返回模板；公共迁移当前已到 V123，新增迁移应从下一个未使用编号顺延。

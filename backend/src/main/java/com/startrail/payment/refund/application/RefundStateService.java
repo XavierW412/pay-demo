@@ -45,13 +45,21 @@ public class RefundStateService {
                 return review(current, "Airwallex 返回未识别的退款状态");
             }
             var localStatus = normalizeStatus(provider.status());
+            if ("ACCEPTED".equals(current.status()) && "FAILED".equals(localStatus)) {
+                refunds.recordCheckFailure(refundId,
+                        "Airwallex 在退款已接受后返回失败状态；保留已通知的业务成功并需人工核对");
+                return current;
+            }
             if ("ACCEPTED".equals(current.status()) && "RECEIVED".equals(localStatus)) {
+                refunds.recordCheckFailure(refundId,
+                        "Airwallex 返回较早的退款状态 RECEIVED；保留已通知的业务成功并需复核");
                 return current;
             }
             var changed = !current.status().equals(localStatus);
             refunds.updateProviderState(refundId, provider.id(), localStatus, provider.status(), Instant.now());
             var updated = refunds.findById(refundId).orElseThrow();
-            if (changed) {
+            // ACCEPTED 是业务成功节点。每次核实到该状态都尝试入队，确保升级前的记录也能发送新契约；稳定事件编号会在 outbox 中去重。
+            if (changed || "ACCEPTED".equals(localStatus)) {
                 notifications.enqueue(updated);
             }
             return updated;
@@ -83,6 +91,12 @@ public class RefundStateService {
     public void stopUnresolvedChecks(UUID refundId) {
         transactions.executeWithoutResult(transaction -> {
             var current = refunds.lockById(refundId);
+            if ("ACCEPTED".equals(current.status())) {
+                refunds.recordCheckFailure(refundId,
+                        "渠道结算状态自动核查次数已达上限；业务退款成功状态保持不变");
+                refunds.stopChecking(refundId);
+                return;
+            }
             if (!"SUCCEEDED".equals(current.status()) && !"FAILED".equals(current.status())) {
                 review(current, "自动核实次数已达上限，需要人工对账");
                 refunds.stopChecking(refundId);
@@ -92,6 +106,10 @@ public class RefundStateService {
 
     private RefundRecord review(RefundRecord current, String message) {
         if (isTerminal(current.status())) {
+            refunds.recordCheckFailure(current.id(), message);
+            return current;
+        }
+        if ("ACCEPTED".equals(current.status())) {
             refunds.recordCheckFailure(current.id(), message);
             return current;
         }

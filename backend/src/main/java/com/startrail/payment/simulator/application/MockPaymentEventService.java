@@ -126,17 +126,35 @@ public class MockPaymentEventService {
         } catch (JacksonException exception) {
             throw new InvalidMockPaymentEventException("模拟星辙退款通知格式无效");
         }
+        var executionStatus = notification.executionStatus() == null
+                ? notification.status() : notification.executionStatus();
+        var businessOutcome = notification.businessOutcome() == null
+                ? legacyBusinessOutcome(executionStatus) : notification.businessOutcome();
         if (notification.eventId() == null || notification.refundRequestId() == null
                 || notification.refundId() == null || notification.paymentOrderId() == null
-                || notification.businessOrderId() == null || notification.status() == null
+                || notification.businessOrderId() == null || executionStatus == null
                 || notification.amount() == null || notification.currency() == null
                 || notification.amount().signum() <= 0) {
             throw new InvalidMockPaymentEventException("模拟星辙退款通知缺少必要字段");
         }
         if (!java.util.Set.of("PENDING_OPERATOR_CONFIRMATION", "BLOCKED", "SUBMITTING", "RECEIVED",
                 "ACCEPTED", "SUCCEEDED", "FAILED", "NEEDS_REVIEW")
-                .contains(notification.status())) {
+                .contains(executionStatus)) {
             throw new InvalidMockPaymentEventException("模拟星辙退款通知包含未知状态");
+        }
+        if (!java.util.Set.of("PROCESSING", "SUCCEEDED", "FAILED", "PENDING").contains(businessOutcome)
+                || notification.status() != null && !notification.status().equals(executionStatus)
+                || notification.providerStatus() != null && !java.util.Set.of(
+                        "RECEIVED", "ACCEPTED", "SETTLED", "SUCCEEDED", "FAILED")
+                        .contains(notification.providerStatus())
+                || notification.rawProviderStatus() != null && !java.util.Set.of(
+                        "RECEIVED", "ACCEPTED", "SETTLED", "SUCCEEDED", "FAILED")
+                        .contains(notification.rawProviderStatus())
+                || notification.rawProviderStatus() != null && notification.providerStatus() != null
+                        && !normalizeLegacyProviderStatus(notification.rawProviderStatus())
+                                .equals(notification.providerStatus())
+                || !isValidRefundOutcome(executionStatus, businessOutcome, notification.providerStatus())) {
+            throw new InvalidMockPaymentEventException("模拟星辙退款通知的业务结果与状态组合无效");
         }
         var matchingOrders = jdbcTemplate.queryForList("""
                 SELECT business_order_id FROM mock_xingzhe_order
@@ -158,27 +176,60 @@ public class MockPaymentEventService {
         var inserted = jdbcTemplate.update("""
                 INSERT INTO mock_xingzhe_refund_event(
                     event_id, business_order_id, refund_request_id, provider_refund_id,
-                    status, amount, currency, received_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (event_id) DO NOTHING
+                    status, business_outcome, execution_status, provider_status, raw_provider_status,
+                    amount, currency, received_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (event_id) DO NOTHING
                 """, notification.eventId(), notification.businessOrderId(), notification.refundRequestId(),
-                notification.providerRefundId(), notification.status(), notification.amount(),
+                notification.providerRefundId(), executionStatus, businessOutcome, executionStatus,
+                notification.providerStatus(), notification.rawProviderStatus(), notification.amount(),
                 notification.currency(), java.sql.Timestamp.from(Instant.now()));
         if (inserted == 0) {
             return;
         }
         jdbcTemplate.update("""
                 UPDATE mock_xingzhe_refund_request
-                SET payment_service_status = ?, payment_refund_id = ?, last_event_at = ?
+                SET payment_service_status = ?, payment_refund_id = ?, business_outcome = ?,
+                    provider_status = ?, raw_provider_status = ?, last_event_at = ?
                 WHERE refund_request_id = ? AND business_order_id = ?
                     AND (last_event_at IS NULL OR last_event_at < ?)
-                """, notification.status(), notification.refundId(),
+                """, executionStatus, notification.refundId(), businessOutcome,
+                notification.providerStatus(), notification.rawProviderStatus(),
                 java.sql.Timestamp.from(occurredAt), notification.refundRequestId(), notification.businessOrderId(),
                 java.sql.Timestamp.from(occurredAt));
+    }
+
+    private static String legacyBusinessOutcome(String executionStatus) {
+        if (executionStatus == null) return null;
+        return switch (executionStatus) {
+            case "ACCEPTED", "SUCCEEDED" -> "SUCCEEDED";
+            case "RECEIVED", "SUBMITTING" -> "PROCESSING";
+            case "FAILED" -> "FAILED";
+            default -> "PENDING";
+        };
+    }
+
+    private static boolean isValidRefundOutcome(String executionStatus, String businessOutcome,
+            String providerStatus) {
+        return switch (executionStatus) {
+            case "ACCEPTED" -> "SUCCEEDED".equals(businessOutcome)
+                    && (providerStatus == null || "ACCEPTED".equals(providerStatus));
+            case "SUCCEEDED" -> "SUCCEEDED".equals(businessOutcome)
+                    && (providerStatus == null || "SETTLED".equals(providerStatus)
+                    || "SUCCEEDED".equals(providerStatus));
+            case "RECEIVED", "SUBMITTING" -> "PROCESSING".equals(businessOutcome);
+            case "FAILED" -> "FAILED".equals(businessOutcome);
+            default -> "PENDING".equals(businessOutcome);
+        };
+    }
+
+    private static String normalizeLegacyProviderStatus(String providerStatus) {
+        return "SUCCEEDED".equals(providerStatus) ? "SETTLED" : providerStatus;
     }
 
     private record MockRefundNotification(
             String eventId, String eventType, String refundRequestId, UUID refundId,
             UUID paymentOrderId, String businessOrderId, String providerRefundId,
-            String status, BigDecimal amount, String currency, Instant occurredAt) {
+            String businessOutcome, String status, String executionStatus, String providerStatus,
+            String rawProviderStatus, BigDecimal amount, String currency, Instant occurredAt) {
     }
 }

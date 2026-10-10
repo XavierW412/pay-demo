@@ -5,6 +5,7 @@ import { init } from '@airwallex/components-sdk'
 import { AlertCircle, LoaderCircle, LockKeyhole } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCheckoutContext } from './api'
+import { captureClientError } from '@/shared/diagnostics/client-diagnostics'
 
 type CheckoutState = 'loading' | 'redirecting' | 'error'
 
@@ -26,6 +27,7 @@ export function CheckoutPage() {
   useEffect(() => {
     if (!context) return
     let cancelled = false
+    let failureReported = false
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     const fail = (message: string) => {
@@ -33,6 +35,11 @@ export function CheckoutPage() {
       if (timeoutId) clearTimeout(timeoutId)
       setCheckoutState('error')
       setErrorMessage(message)
+      if (!failureReported) {
+        failureReported = true
+        // 托管服务错误仅上传固定类别摘要，不读取 SDK 异常或付款参数。
+        void captureClientError(null, { category: 'UNHANDLED_ERROR' })
+      }
     }
 
     const startHostedCheckout = async () => {

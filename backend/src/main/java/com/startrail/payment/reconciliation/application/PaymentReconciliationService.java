@@ -44,7 +44,7 @@ public class PaymentReconciliationService {
     public ReconciliationSnapshot checkByOperator(String username, UUID paymentOrderId) {
         ReconciliationSnapshot snapshot;
         try {
-            snapshot = check(paymentOrderId);
+            snapshot = check(paymentOrderId, true);
         } catch (RuntimeException exception) {
             if (!(exception instanceof InvalidOperatorRequestException)) {
                 audit.record(username, paymentOrderId, "CHECK_PAYMENT_RECONCILIATION",
@@ -59,10 +59,15 @@ public class PaymentReconciliationService {
     }
 
     public ReconciliationSnapshot check(UUID paymentOrderId) {
+        return check(paymentOrderId, false);
+    }
+
+    private ReconciliationSnapshot check(UUID paymentOrderId, boolean operatorInitiated) {
         var order = paymentOrders.findById(paymentOrderId)
                 .orElseThrow(() -> new InvalidOperatorRequestException("支付单不存在"));
-        var leaseToken = store.claim(paymentOrderId).orElseThrow(
-                () -> new ResponseStatusException(HttpStatus.CONFLICT, "核查正在进行或尚未到下次核查时间"));
+        var claim = operatorInitiated ? store.claimForOperator(paymentOrderId) : store.claim(paymentOrderId);
+        var leaseToken = claim.orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.CONFLICT, "该支付单的核查正在进行，请稍后重试"));
         try {
             if (order.provider() == PaymentProvider.AIRWALLEX
                     && order.providerPaymentIntentId() != null && !store.reserveProviderQuery()) {

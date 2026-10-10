@@ -1,0 +1,140 @@
+groups:
+  - name: startrail-payment-technical-health
+    interval: 30s
+    rules:
+      # Thresholds below are initial technical watch parameters. Tune them
+      # for the deployment's traffic and operations policy; they are not
+      # payment acceptance or refund business rules.
+      - alert: PaymentApiServerErrors
+        expr: sum(increase(http_server_requests_seconds_count{status=~"5.."}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          area: api
+        annotations:
+          summary: "支付服务近期出现 HTTP 5xx"
+          description: "请通过受保护的运营入口使用诊断编号排查；此告警不包含交易明细。"
+
+      - alert: PaymentApiAverageLatencyHigh
+        expr: (sum(rate(http_server_requests_seconds_sum[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          area: api
+        annotations:
+          summary: "支付服务近 5 分钟平均请求耗时超过初始阈值"
+          description: "当前默认技术观察阈值为 2 秒；请按部署流量调整规则参数。"
+
+      - alert: PaymentIntentCreationFailures
+        expr: sum(increase(startrail_payment_intent_creation_total{result="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: payment-creation
+        annotations:
+          summary: "近期有收款请求创建失败"
+          description: "请在受保护的运营诊断入口检查相关事件。"
+
+      - alert: PaymentVerificationBacklog
+        expr: startrail_payment_verification_pending > 10
+        for: 5m
+        labels:
+          severity: warning
+          area: payment-verification
+        annotations:
+          summary: "待核实支付数量超过初始观察阈值"
+          description: "默认阈值为 10 笔聚合数量，不代表交易失败；请核实服务负载和队列恢复情况。"
+
+      # Gauge 仅覆盖 CREATING、PROCESSING、REQUIRES_REVIEW；正常等待用户付款的 AWAITING_PAYMENT 不纳入。
+      # updated_at 表示本地支付状态记录最近一次变化时间，服务商状态变化即使映射状态不变也会更新时间；
+      # 默认年龄阈值由 DIAGNOSTICS_TELEMETRY_STALE_PENDING_MINUTES=15 控制。
+      # `> 0` 和 `for: 1m` 是可调整的技术告警阈值/持续时间，不代表付款超时或失败。
+      - alert: PaymentVerificationStalePending
+        expr: startrail_payment_verification_stale_pending > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: payment-verification
+        annotations:
+          summary: "存在本地支付状态记录长时间未变化且仍需处理或核查的支付"
+          description: "请核对支付核查链路和服务商状态；此聚合告警不判断 Airwallex 付款超时或失败。"
+
+      - alert: WebhookReceiptFailures
+        expr: sum(increase(startrail_payment_webhook_receipt_total{result="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: webhook
+        annotations:
+          summary: "近期有已进入控制器的 Webhook 验签或接收处理失败"
+          description: "此指标不覆盖框架在进入控制器前因缺失请求头拒绝的请求；请结合 HTTP 4xx 指标排查，不要在告警通知中附带 Webhook 正文。"
+
+      - alert: WebhookProcessingFailures
+        expr: sum(increase(startrail_payment_webhook_processing_total{result="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: webhook
+        annotations:
+          summary: "近期有 Webhook 后续处理失败"
+          description: "请在受保护的运营诊断入口核对处理状态。"
+
+      - alert: XingzheNotificationBacklog
+        expr: startrail_payment_notification_outbox_pending > 10
+        for: 5m
+        labels:
+          severity: warning
+          area: notification
+        annotations:
+          summary: "星辙通知待投递或重试数量超过初始观察阈值"
+          description: "默认阈值为 10 条聚合数量；请核对通知投递和恢复状态。"
+
+      - alert: RefundResultUnknown
+        expr: startrail_payment_refund_result_unknown > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: refund
+        annotations:
+          summary: "存在待继续核实的退款结果"
+          description: "请由有权限的员工在运营后台核实；告警本身不批准或执行退款。"
+
+      - alert: ReconciliationDifferenceFound
+        expr: startrail_payment_reconciliation_differences_24h > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: reconciliation
+        annotations:
+          summary: "最近 24 小时发现支付状态核对差异"
+          description: "请在受保护的运营入口查看差异摘要；告警不包含支付单号或用户信息。"
+
+      - alert: PaymentReconciliationSchedulerFailures
+        expr: sum(increase(startrail_payment_reconciliation_total{result="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          area: scheduler
+        annotations:
+          summary: "支付状态核查调度近期有失败"
+          description: "请检查调度器和数据源健康，并通过诊断编号继续排查。"
+
+      - alert: PaymentReconciliationSchedulerNotObserved
+        expr: sum(increase(startrail_payment_reconciliation_total[10m])) == 0
+        for: 2m
+        labels:
+          severity: warning
+          area: scheduler
+        annotations:
+          summary: "最近 10 分钟未观察到支付状态核查调度运行"
+          description: "默认观察窗口为 10 分钟；请核对调度配置和 Prometheus 抓取状态。"
+
+      - alert: DatabasePoolWaitingConnections
+        expr: max(hikaricp_connections_pending) > 0
+        for: 2m
+        labels:
+          severity: warning
+          area: database
+        annotations:
+          summary: "数据库连接池出现等待连接"
+          description: "请检查数据库和连接池负载；告警不包含 SQL 或业务数据。"
