@@ -8,7 +8,7 @@
 
 当前的支付链路实现记录：[Airwallex 支付创建、结果核实与星辙通知](./payment/payment-flow.md)。设计基线见[本地星辙模拟与 Airwallex 支付链路](../superpowers/specs/2026-10-09-local-xingzhe-airwallex-payment-design.md)，当前付款页调整见[内嵌收银设计](../superpowers/specs/2026-10-09-payment-checkout-experience-design.md)。[星辙付款与通知契约](./integration/xingzhe-payment-contract.md)已在代码中实现但仍属提议，需星辙正式确认或适配后才能作为生产接口。
 
-已实现的后续模块设计：[运营后台](./operations/operations-console.md)、[支付资金总览](./operations/finance-overview.md)、[星辙指令退款执行](./refund/refund-execution.md)、[逐笔支付状态核查](./reconciliation/payment-status-check.md)。支付状态核查与资金总览尚未连接 Airwallex 结算报告，不能当作完整资金结算对账。
+已实现的后续模块设计：[运营后台](./operations/operations-console.md)、[支付资金总览](./operations/finance-overview.md)、[浏览器状态实时更新](./operations/realtime-browser-updates.md)、[星辙指令退款执行](./refund/refund-execution.md)、[逐笔支付状态核查](./reconciliation/payment-status-check.md)。支付状态核查与资金总览尚未连接 Airwallex 结算报告，不能当作完整资金结算对账。
 
 服务端请求日志、支付链路指标、追踪和本地监控边界见[支付服务运行监控](./operations/payment-observability.md)。运行监控只用于运维观察，不提供用户端故障上报或运营后台诊断事件管理。
 

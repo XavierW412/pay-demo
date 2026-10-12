@@ -73,7 +73,7 @@ function CurrencyPanel({ summary }: { summary: FinanceCurrencySummary }) {
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">业务退款成功</p>
         <p className="mt-2 text-xl font-semibold tabular-nums">{formatMoney(summary.refundBusinessSucceededAmount, summary.currency)}</p>
-        <p className="mt-2 text-xs text-muted-foreground">Airwallex 已接受及已结算退款的业务成功总额</p>
+        <p className="mt-2 text-xs text-muted-foreground">Airwallex 已接受及 Airwallex 侧已结算退款的业务成功总额；不代表用户银行已入账</p>
       </div>
       <div className="bg-card p-5">
         <p className="text-xs text-muted-foreground">渠道结算进度</p>

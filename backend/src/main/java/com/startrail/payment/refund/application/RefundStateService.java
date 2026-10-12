@@ -3,6 +3,7 @@ package com.startrail.payment.refund.application;
 import com.startrail.payment.payment.application.PaymentOrderRepository;
 import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway.ProviderRefund;
 import com.startrail.payment.refund.infrastructure.RefundJdbcRepository;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -18,13 +19,15 @@ public class RefundStateService {
     private final PaymentOrderRepository paymentOrders;
     private final RefundNotificationWriter notifications;
     private final TransactionTemplate transactions;
+    private final StateChangePublisher eventHub;
 
     public RefundStateService(RefundJdbcRepository refunds, PaymentOrderRepository paymentOrders,
-            RefundNotificationWriter notifications, TransactionTemplate transactions) {
+            RefundNotificationWriter notifications, TransactionTemplate transactions, StateChangePublisher eventHub) {
         this.refunds = refunds;
         this.paymentOrders = paymentOrders;
         this.notifications = notifications;
         this.transactions = transactions;
+        this.eventHub = eventHub;
     }
 
     public RefundRecord applyProviderResult(UUID refundId, ProviderRefund provider) {
@@ -62,6 +65,9 @@ public class RefundStateService {
             if (changed || "ACCEPTED".equals(localStatus)) {
                 notifications.enqueue(updated);
             }
+            if (changed) {
+                eventHub.publishOperationsChangeAfterCommit();
+            }
             return updated;
         });
     }
@@ -85,6 +91,7 @@ public class RefundStateService {
             refunds.markBlocked(refundId, message);
             var updated = refunds.findById(refundId).orElseThrow();
             notifications.enqueue(updated);
+            eventHub.publishOperationsChangeAfterCommit();
         });
     }
 
@@ -117,6 +124,7 @@ public class RefundStateService {
         var updated = refunds.findById(current.id()).orElseThrow();
         if (!"NEEDS_REVIEW".equals(current.status())) {
             notifications.enqueue(updated);
+            eventHub.publishOperationsChangeAfterCommit();
         }
         return updated;
     }

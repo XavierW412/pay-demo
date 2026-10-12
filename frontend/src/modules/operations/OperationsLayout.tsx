@@ -1,32 +1,38 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, ClipboardList, FileClock, LayoutDashboard, LogOut, RefreshCw, ScanSearch, ShieldCheck, Users } from 'lucide-react'
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { getCurrentOperator, logoutOperator } from './api'
 import { roleLabel } from './format'
 
 export function OperationsLayout() {
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const refreshInProgress = useRef(false)
   const sessionQuery = useQuery({ queryKey: ['operator-session'], queryFn: getCurrentOperator, retry: false })
   const session = sessionQuery.data
-  const isTransactionDetail = /^\/operations\/transactions\/[^/]+$/.test(location.pathname)
-  const refreshIntervalMs = isTransactionDetail ? 3_000 : 10_000
 
-  const refreshActiveQueries = useCallback(async (manual = false) => {
+  useEffect(() => {
+    if (!session) return
+    const eventSource = new EventSource('/api/v1/operations/events')
+    const refreshActiveQueries = () => {
+      void queryClient.invalidateQueries({
+        type: 'active',
+        predicate: query => query.queryKey[0] !== 'operator-session',
+      })
+    }
+    eventSource.addEventListener('state-changed', refreshActiveQueries)
+    eventSource.onopen = refreshActiveQueries
+    return () => eventSource.close()
+  }, [queryClient, session])
+  const refreshActiveQueries = useCallback(async () => {
     if (document.visibilityState !== 'visible' || refreshInProgress.current) return
-    if (!manual && queryClient.isFetching({
-      type: 'active',
-      predicate: query => query.queryKey[0] !== 'operator-session',
-    }) > 0) return
 
     refreshInProgress.current = true
-    if (manual) setIsRefreshing(true)
+    setIsRefreshing(true)
     try {
       await queryClient.refetchQueries({
         type: 'active',
@@ -35,16 +41,9 @@ export function OperationsLayout() {
       setLastUpdatedAt(new Date())
     } finally {
       refreshInProgress.current = false
-      if (manual) setIsRefreshing(false)
+      setIsRefreshing(false)
     }
   }, [queryClient])
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshActiveQueries()
-    }, refreshIntervalMs)
-    return () => window.clearInterval(timer)
-  }, [refreshActiveQueries, refreshIntervalMs])
 
   const logout = async () => {
     try {
@@ -100,9 +99,9 @@ export function OperationsLayout() {
           <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="size-4" aria-hidden="true" />支付运营 · 安全工作区</span>
           <div className="flex items-center gap-3">
             <span className="hidden text-xs text-muted-foreground md:inline" aria-live="polite">
-              自动每{isTransactionDetail ? '3' : '10'}秒更新{lastUpdatedAt ? ` · 最近 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour12: false })}` : ''}
+              服务器通知后自动更新{lastUpdatedAt ? ` · 最近手动读取 ${lastUpdatedAt.toLocaleTimeString('zh-CN', { hour12: false })}` : ''}
             </span>
-            <Button variant="outline" size="sm" onClick={() => void refreshActiveQueries(true)} disabled={isRefreshing}>
+            <Button variant="outline" size="sm" onClick={() => void refreshActiveQueries()} disabled={isRefreshing}>
               <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
               <span className="hidden sm:inline">{isRefreshing ? '刷新中' : '刷新'}</span>
             </Button>

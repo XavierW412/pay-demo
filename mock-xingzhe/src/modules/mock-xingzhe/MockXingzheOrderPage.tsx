@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CircleDashed, LoaderCircle } from 'lucide-react'
 import axios from 'axios'
@@ -8,6 +8,7 @@ import './mock-xingzhe.css'
 
 export function MockXingzheOrderPage() {
   const { businessOrderId = '' } = useParams()
+  const queryClient = useQueryClient()
   const [refundAmount, setRefundAmount] = useState('')
   const [refundPending, setRefundPending] = useState(false)
   const [refundMessage, setRefundMessage] = useState('')
@@ -19,12 +20,6 @@ export function MockXingzheOrderPage() {
     queryKey: ['mock-order-status', businessOrderId],
     queryFn: () => getMockBusinessOrderStatus(businessOrderId),
     enabled: Boolean(businessOrderId),
-    refetchInterval: (query) => {
-      const current = query.state.data
-      if (!current) return 4000
-      return current.paymentStatus === 'FAILED' || current.paymentStatus === 'CANCELLED'
-        || current.businessStatus === 'PAID' ? false : 4000
-    },
     retry: false,
   })
   const order = orderQuery.data
@@ -32,22 +27,37 @@ export function MockXingzheOrderPage() {
     queryKey: ['mock-payment-history', businessOrderId],
     queryFn: () => getMockPaymentHistory(businessOrderId),
     enabled: Boolean(businessOrderId),
-    refetchInterval: 4000,
     retry: false,
   })
   const refundEvents = useQuery({
     queryKey: ['mock-refund-events', businessOrderId],
     queryFn: () => getMockRefundEvents(businessOrderId),
     enabled: Boolean(businessOrderId) && orderQuery.data?.paymentMode === 'AIRWALLEX_SANDBOX',
-    refetchInterval: 4000,
   })
   const refundRequests = useQuery({
     queryKey: ['mock-refund-requests', businessOrderId],
     queryFn: () => getMockRefundRequests(businessOrderId),
     enabled: Boolean(businessOrderId) && orderQuery.data?.paymentMode === 'AIRWALLEX_SANDBOX',
-    refetchInterval: 4000,
     retry: false,
   })
+
+  useEffect(() => {
+    if (!businessOrderId) return
+    const eventSource = new EventSource(
+      `/mock-xingzhe/api/v1/orders/${encodeURIComponent(businessOrderId)}/events`,
+    )
+    const refreshOrderQueries = () => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['mock-order-status', businessOrderId] }),
+        queryClient.invalidateQueries({ queryKey: ['mock-payment-history', businessOrderId] }),
+        queryClient.invalidateQueries({ queryKey: ['mock-refund-events', businessOrderId] }),
+        queryClient.invalidateQueries({ queryKey: ['mock-refund-requests', businessOrderId] }),
+      ])
+    }
+    eventSource.addEventListener('state-changed', refreshOrderQueries)
+    eventSource.onopen = refreshOrderQueries
+    return () => eventSource.close()
+  }, [businessOrderId, queryClient])
   const active = order?.businessStatus === 'PAID' && order.serviceStatus === 'ACTIVE'
   const failed = order?.paymentStatus === 'FAILED' || order?.paymentStatus === 'CANCELLED'
   const canContinueAirwallexPayment = order
@@ -297,7 +307,7 @@ export function MockXingzheOrderPage() {
           </section>}
           {active && order && !isLocalSimulation && <div className="mt-6 border-t border-current/10 pt-5">
             <h3 className="text-base font-semibold">星辙业务退款处理</h3>
-            <p className="mt-2 text-sm leading-6 opacity-75">先模拟用户提出申请，再由星辙业务方批准或拒绝。只有批准后才发送签名指令给支付项目。</p>
+            <p className="mt-2 text-sm leading-6 opacity-75">先模拟用户提出申请，再由星辙业务方批准或拒绝。只有批准后才发送签名指令给支付项目。Airwallex 已接受表示退款已被渠道接受；已结算表示 Airwallex 侧结算完成，不能据此确认用户银行已入账。</p>
             <p className="mt-2 text-sm">订单金额 {order.currency} {order.amount} · 已占用 {order.currency} {minorUnitsToAmount(reservedRefundAmount)} · 当前可申请 {order.currency} {minorUnitsToAmount(remainingRefundAmount)}</p>
             <div className="mt-4 flex flex-wrap items-end gap-3"><label className="text-sm">申请金额（{order.currency}）<input className="mt-1 block h-11 w-40 rounded-lg border border-current/20 bg-transparent px-3" type="number" min="0.01" max={minorUnitsToAmount(remainingRefundAmount)} step="0.01" placeholder={minorUnitsToAmount(remainingRefundAmount)} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label><button className="mock-xingzhe-button secondary" type="button" disabled={refundPending || refundRequests.isPending || refundRequests.isError || remainingRefundAmount <= 0n} onClick={() => void requestRefund()}>{refundPending ? '正在提交…' : '提交退款申请'}</button>{canReplacePendingRefund && <button className="mock-xingzhe-button primary" type="button" disabled={refundPending || refundRequests.isPending || refundRequests.isError || remainingRefundAmount <= 0n} onClick={() => void requestRefund(true)}>{refundPending ? '正在提交…' : '确认放弃旧编号并按当前金额新建'}</button>}</div>
             {refundMessage && <p className="mt-3 text-sm" role="status">{refundMessage}</p>}
@@ -317,11 +327,16 @@ export function MockXingzheOrderPage() {
             {refundEvents.data && refundEvents.data.length > 0 && <div className="mt-4 space-y-2"><p className="text-sm font-medium">模拟星辙收到的退款通知</p>{refundEvents.data.map((event) => <p className="text-sm" key={`${event.refundRequestId}:${event.providerStatus ?? event.status}:${event.status}`}>{event.currency} {event.amount} · {refundBusinessLabel(event.businessOutcome, event.executionStatus ?? event.status, event.providerStatus)} · {new Date(event.receivedAt).toLocaleString('zh-CN')}<span className="block text-xs text-muted-foreground">支付项目处理：{refundExecutionLabel(event.executionStatus ?? event.status)} · Airwallex 状态：{providerStatusLabel(event.providerStatus, event.rawProviderStatus)}</span></p>)}</div>}
           </div>}
           <div className="mt-6 flex flex-wrap gap-3">
-            <button className="mock-xingzhe-button secondary" type="button" onClick={() => void orderQuery.refetch()}>重新查询</button>
+            <button className="mock-xingzhe-button secondary" type="button" onClick={() => void Promise.all([
+              orderQuery.refetch(),
+              paymentHistory.refetch(),
+              refundEvents.refetch(),
+              refundRequests.refetch(),
+            ])}>刷新订单与通知记录</button>
             <Link className="mock-xingzhe-button secondary" to="/mock-xingzhe"><ArrowLeft className="size-4" aria-hidden="true" />返回服务选购</Link>
           </div>
         </section>
-        <footer className="mock-xingzhe-footer"><CircleDashed className="inline size-3" aria-hidden="true" /> 本地模拟页面 · 以服务端状态为准</footer>
+        <footer className="mock-xingzhe-footer"><CircleDashed className="inline size-3" aria-hidden="true" /> 本地模拟页面 · 状态由服务器通知后自动更新</footer>
       </div>
     </main>
   )
@@ -333,9 +348,9 @@ function refundBusinessLabel(outcome: string | null, executionStatus: string, pr
     : executionStatus === 'FAILED' ? 'FAILED' : executionStatus === 'RECEIVED' ? 'PROCESSING' : 'PENDING')
   if (businessOutcome === 'SUCCEEDED') {
     return providerStatus === 'SETTLED' || providerStatus === 'SUCCEEDED'
-      ? '业务退款成功 · 渠道已结算'
+      ? '业务退款成功 · Airwallex 侧已结算'
       : providerStatus === 'ACCEPTED'
-        ? '业务退款成功 · 渠道已接受'
+        ? '业务退款成功 · Airwallex 已接受'
         : '业务退款成功 · 渠道状态待补充'
   }
   if (businessOutcome === 'FAILED') return '退款失败'

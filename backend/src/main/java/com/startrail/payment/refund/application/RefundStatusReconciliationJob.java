@@ -6,10 +6,12 @@ import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway;
 import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway.ProviderRefund;
 import com.startrail.payment.refund.infrastructure.RefundJdbcRepository;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "refund.status-check", name = "enabled", havingValue = "true")
 public class RefundStatusReconciliationJob {
     private final RefundJdbcRepository refunds;
     private final PaymentOrderRepository paymentOrders;

@@ -2,6 +2,7 @@ package com.startrail.payment.reconciliation.infrastructure;
 
 import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.reconciliation.application.PaymentReconciliationService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
+@ConditionalOnProperty(prefix = "payment.reconciliation", name = "enabled", havingValue = "true")
 public class PaymentReconciliationScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(PaymentReconciliationScheduler.class);
 

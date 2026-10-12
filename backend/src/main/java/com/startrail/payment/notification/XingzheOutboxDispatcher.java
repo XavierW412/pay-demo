@@ -2,6 +2,7 @@ package com.startrail.payment.notification;
 
 import com.startrail.payment.observability.infrastructure.PaymentTelemetry;
 import com.startrail.payment.integrations.startrail.IntegrationSigner;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ public class XingzheOutboxDispatcher {
     private final String outboundSecret;
     private final String notificationUrl;
     private final PaymentTelemetry telemetry;
+    private final StateChangePublisher eventHub;
 
     public XingzheOutboxDispatcher(
             JdbcTemplate jdbcTemplate,
@@ -26,13 +28,15 @@ public class XingzheOutboxDispatcher {
             IntegrationSigner signer,
             @Value("${startrail.integration.outbound-secret}") String outboundSecret,
             @Value("${startrail.integration.notification-url}") String notificationUrl,
-            PaymentTelemetry telemetry) {
+            PaymentTelemetry telemetry,
+            StateChangePublisher eventHub) {
         this.jdbcTemplate = jdbcTemplate;
         this.restClient = restClientBuilder.build();
         this.signer = signer;
         this.outboundSecret = outboundSecret;
         this.notificationUrl = notificationUrl;
         this.telemetry = telemetry;
+        this.eventHub = eventHub;
     }
 
     @Scheduled(fixedDelayString = "${payment.notification-dispatch-delay-ms:3000}")
@@ -83,6 +87,7 @@ public class XingzheOutboxDispatcher {
             markForRetry(event, deliveryStateFailure);
             return;
         }
+        eventHub.publishOperationsChangeAfterCommit();
         telemetry.increment(PaymentTelemetry.CounterMetric.OUTBOX_DELIVERY, PaymentTelemetry.Result.DELIVERED);
     }
 
@@ -98,6 +103,7 @@ public class XingzheOutboxDispatcher {
                     message.substring(0, Math.min(message.length(), 1000)),
                     event.eventId());
             telemetry.increment(PaymentTelemetry.CounterMetric.OUTBOX_DELIVERY, PaymentTelemetry.Result.RETRY);
+            eventHub.publishOperationsChangeAfterCommit();
         } catch (RuntimeException retryStateFailure) {
             telemetry.increment(PaymentTelemetry.CounterMetric.OUTBOX_STATE_WRITE, PaymentTelemetry.Result.FAILURE);
             telemetry.increment(PaymentTelemetry.CounterMetric.OUTBOX_DELIVERY, PaymentTelemetry.Result.FAILURE);

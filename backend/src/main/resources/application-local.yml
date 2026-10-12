@@ -20,9 +20,17 @@ startrail:
 
 payment:
   status-refresh:
+    enabled: ${PAYMENT_STATUS_REFRESH_ENABLED:false}
     poll-delay-ms: ${PAYMENT_STATUS_REFRESH_POLL_DELAY_MS:10000}
+  reconciliation:
+    enabled: ${PAYMENT_RECONCILIATION_ENABLED:false}
+    poll-delay-ms: ${PAYMENT_RECONCILIATION_POLL_DELAY_MS:60000}
   checkout:
     public-base-url: ${PAYMENT_CHECKOUT_PUBLIC_BASE_URL:http://localhost:5173}
+
+refund:
+  status-check:
+    enabled: ${REFUND_STATUS_CHECK_ENABLED:false}
 
 airwallex:
   environment: sandbox

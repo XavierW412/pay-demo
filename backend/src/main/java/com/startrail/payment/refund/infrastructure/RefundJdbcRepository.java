@@ -31,6 +31,16 @@ public class RefundJdbcRepository {
                 this::map, requestId).stream().findFirst();
     }
 
+    public Optional<RefundRecord> findByProviderRefundId(String providerRefundId) {
+        return jdbcTemplate.query("SELECT " + COLUMNS + " FROM refund_order WHERE provider_refund_id = ?",
+                this::map, providerRefundId).stream().findFirst();
+    }
+
+    public Optional<RefundRecord> findByProviderRequestId(String providerRequestId) {
+        return jdbcTemplate.query("SELECT " + COLUMNS + " FROM refund_order WHERE provider_request_id = ?",
+                this::map, providerRequestId).stream().findFirst();
+    }
+
     public Optional<RefundRecord> findById(UUID id) {
         return jdbcTemplate.query("SELECT " + COLUMNS + " FROM refund_order WHERE id = ?",
                 this::map, id).stream().findFirst();

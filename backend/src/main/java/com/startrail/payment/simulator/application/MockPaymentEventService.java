@@ -3,6 +3,7 @@ package com.startrail.payment.simulator.application;
 import com.startrail.payment.integrations.startrail.IntegrationSignatureVerifier;
 import com.startrail.payment.notification.PaymentStatusNotification;
 import com.startrail.payment.payment.domain.PaymentStatus;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -22,16 +23,19 @@ public class MockPaymentEventService {
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
     private final String outboundSecret;
+    private final StateChangePublisher eventHub;
 
     public MockPaymentEventService(
             IntegrationSignatureVerifier signatureVerifier,
             ObjectMapper objectMapper,
             JdbcTemplate jdbcTemplate,
-            @Value("${startrail.integration.outbound-secret}") String outboundSecret) {
+            @Value("${startrail.integration.outbound-secret}") String outboundSecret,
+            StateChangePublisher eventHub) {
         this.signatureVerifier = signatureVerifier;
         this.objectMapper = objectMapper;
         this.jdbcTemplate = jdbcTemplate;
         this.outboundSecret = outboundSecret;
+        this.eventHub = eventHub;
     }
 
     @Transactional
@@ -39,19 +43,24 @@ public class MockPaymentEventService {
         var rawPayload = new String(rawBody, StandardCharsets.UTF_8);
         signatureVerifier.verify(timestamp, nonce, signature, rawPayload, outboundSecret);
         final String eventType;
+        final String businessOrderId;
         try {
-            eventType = objectMapper.readTree(rawPayload).path("eventType").asText();
+            var event = objectMapper.readTree(rawPayload);
+            eventType = event.path("eventType").asText();
+            businessOrderId = event.path("businessOrderId").asText();
         } catch (JacksonException exception) {
             throw new InvalidMockPaymentEventException("模拟星辙通知格式无效");
         }
         if ("refund.status_changed".equals(eventType)) {
             receiveRefund(rawPayload);
+            eventHub.publishMockOrderChangeAfterCommit(businessOrderId);
             return;
         }
         if (!eventType.startsWith("payment_intent.") && !"PAYMENT_STATUS_CHANGED".equals(eventType)) {
             throw new InvalidMockPaymentEventException("模拟星辙通知事件类型无效");
         }
         receivePayment(rawPayload);
+        eventHub.publishMockOrderChangeAfterCommit(businessOrderId);
     }
 
     private void receivePayment(String rawPayload) {

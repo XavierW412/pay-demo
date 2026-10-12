@@ -1,6 +1,7 @@
 package com.startrail.payment.payment.infrastructure;
 
 import com.startrail.payment.payment.application.PaymentStatusVerificationService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "payment.status-refresh", name = "enabled", havingValue = "true")
 public class PaymentStatusRefreshScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(PaymentStatusRefreshScheduler.class);
     private static final int RATE_LIMIT_RETRY_DELAY_SECONDS = 5;

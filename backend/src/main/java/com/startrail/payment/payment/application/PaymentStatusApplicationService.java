@@ -4,6 +4,7 @@ import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentInte
 import com.startrail.payment.notification.PaymentStatusOutboxWriter;
 import com.startrail.payment.payment.domain.PaymentOrder;
 import com.startrail.payment.payment.domain.PaymentStatus;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,12 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentStatusApplicationService {
     private final PaymentOrderProviderUpdateTransaction updateTransaction;
     private final PaymentStatusOutboxWriter outboxWriter;
+    private final StateChangePublisher eventHub;
 
     public PaymentStatusApplicationService(
             PaymentOrderProviderUpdateTransaction updateTransaction,
-            PaymentStatusOutboxWriter outboxWriter) {
+            PaymentStatusOutboxWriter outboxWriter,
+            StateChangePublisher eventHub) {
         this.updateTransaction = updateTransaction;
         this.outboxWriter = outboxWriter;
+        this.eventHub = eventHub;
     }
 
     @Transactional
@@ -29,6 +33,7 @@ public class PaymentStatusApplicationService {
             var eventType = "payment_intent.status_refreshed";
             var eventId = "refresh:" + UUID.randomUUID();
             outboxWriter.enqueue(eventId, eventType, update.order());
+            eventHub.publishOperationsChangeAfterCommit();
         }
         return update.order();
     }
@@ -37,6 +42,7 @@ public class PaymentStatusApplicationService {
     public PaymentOrder applyLocalSimulatedStatus(UUID paymentOrderId, PaymentStatus status, String eventType) {
         var updated = updateTransaction.applyLocalSimulationStatus(paymentOrderId, status);
         outboxWriter.enqueue("local-simulation:" + UUID.randomUUID(), eventType, updated);
+        eventHub.publishOperationsChangeAfterCommit();
         return updated;
     }
 }

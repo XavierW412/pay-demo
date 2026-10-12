@@ -11,6 +11,7 @@ import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway.Provid
 import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway.ProviderRefund;
 import com.startrail.payment.refund.infrastructure.RefundJdbcRepository;
 import com.startrail.payment.refund.interfaces.CreateRefundRequest;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
@@ -28,10 +29,12 @@ public class RefundExecutionService {
     private final OperatorAuditService auditService;
     private final TransactionTemplate transactions;
     private final PaymentTelemetry telemetry;
+    private final StateChangePublisher eventHub;
 
     public RefundExecutionService(PaymentOrderRepository paymentOrders, RefundJdbcRepository refunds,
             AirwallexRefundGateway airwallex, RefundStateService stateService,
-            OperatorAuditService auditService, TransactionTemplate transactions, PaymentTelemetry telemetry) {
+            OperatorAuditService auditService, TransactionTemplate transactions, PaymentTelemetry telemetry,
+            StateChangePublisher eventHub) {
         this.paymentOrders = paymentOrders;
         this.refunds = refunds;
         this.airwallex = airwallex;
@@ -39,11 +42,16 @@ public class RefundExecutionService {
         this.auditService = auditService;
         this.transactions = transactions;
         this.telemetry = telemetry;
+        this.eventHub = eventHub;
     }
 
     /** Receives a Startrail-approved instruction, checks it and reserves the amount without calling Airwallex. */
     public ExecutionResult receive(CreateRefundRequest request) {
-        return observeRefundExecution(() -> receiveObserved(request));
+        var result = observeRefundExecution(() -> receiveObserved(request));
+        if (result.created()) {
+            eventHub.publishOperationsChangeAfterCommit();
+        }
+        return result;
     }
 
     private ExecutionResult receiveObserved(CreateRefundRequest request) {
@@ -141,6 +149,7 @@ public class RefundExecutionService {
             stateService.markBlocked(refundId, claimed == null ? "无法确认退款" : claimed.refund().lastError());
             return new ExecutionResult(refunds.findById(refundId).orElseThrow(), false);
         }
+        eventHub.publishOperationsChangeAfterCommit();
 
         try {
             var providerRefund = airwallex.create(claimed.refund().providerRequestId(),

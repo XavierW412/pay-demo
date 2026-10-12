@@ -6,10 +6,16 @@ import com.startrail.payment.integrations.airwallex.payment.AirwallexPaymentInte
 import com.startrail.payment.notification.PaymentStatusOutboxWriter;
 import com.startrail.payment.payment.application.PaymentOrderProviderUpdateTransaction;
 import com.startrail.payment.payment.application.PaymentOrderRepository;
+import com.startrail.payment.refund.application.RefundStateService;
+import com.startrail.payment.refund.infrastructure.AirwallexRefundGateway;
+import com.startrail.payment.refund.infrastructure.RefundJdbcRepository;
+import com.startrail.payment.shared.application.StateChangePublisher;
 import java.time.Instant;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,7 +27,12 @@ public class AirwallexWebhookEventService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentOrderProviderUpdateTransaction updateTransaction;
     private final PaymentStatusOutboxWriter outboxWriter;
+    private final AirwallexRefundGateway refundGateway;
+    private final RefundJdbcRepository refunds;
+    private final RefundStateService refundStateService;
+    private final StateChangePublisher eventHub;
     private final PaymentTelemetry telemetry;
+    private final TransactionTemplate transactions;
 
     public AirwallexWebhookEventService(
             JdbcTemplate jdbcTemplate,
@@ -30,14 +41,24 @@ public class AirwallexWebhookEventService {
             PaymentOrderRepository paymentOrderRepository,
             PaymentOrderProviderUpdateTransaction updateTransaction,
             PaymentStatusOutboxWriter outboxWriter,
-            PaymentTelemetry telemetry) {
+            AirwallexRefundGateway refundGateway,
+            RefundJdbcRepository refunds,
+            RefundStateService refundStateService,
+            StateChangePublisher eventHub,
+            PaymentTelemetry telemetry,
+            PlatformTransactionManager transactionManager) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.paymentIntentGateway = paymentIntentGateway;
         this.paymentOrderRepository = paymentOrderRepository;
         this.updateTransaction = updateTransaction;
         this.outboxWriter = outboxWriter;
+        this.refundGateway = refundGateway;
+        this.refunds = refunds;
+        this.refundStateService = refundStateService;
+        this.eventHub = eventHub;
         this.telemetry = telemetry;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     public void accept(byte[] rawBody) {
@@ -74,7 +95,6 @@ public class AirwallexWebhookEventService {
                 inserted == 1 ? PaymentTelemetry.Result.ACCEPTED : PaymentTelemetry.Result.DUPLICATE);
     }
 
-    @Transactional
     public void process(String eventId) {
         try {
             telemetry.observe(PaymentTelemetry.Operation.WEBHOOK_PROCESSING, () -> processObserved(eventId));
@@ -95,6 +115,15 @@ public class AirwallexWebhookEventService {
         } catch (JacksonException exception) {
             throw new InvalidAirwallexWebhookException("已存储的 Airwallex Webhook 无法解析");
         }
+        if (isSupportedRefundEvent(eventName)) {
+            processRefundEvent(event.data().object().id());
+            markProcessed(eventId);
+            return;
+        }
+        if (eventName.startsWith("refund.")) {
+            markProcessed(eventId);
+            return;
+        }
         if (!eventName.startsWith("payment_intent.")) {
             markProcessed(eventId);
             return;
@@ -103,13 +132,35 @@ public class AirwallexWebhookEventService {
         var current = paymentIntentGateway.retrieve(event.data().object().id());
         var paymentOrder = paymentOrderRepository.findByProviderPaymentIntentId(current.id())
                 .orElseThrow(() -> new IllegalStateException("Airwallex Payment Intent 尚未关联内部支付单"));
-        var updated = updateTransaction.applyVerifiedProviderStatus(
-                paymentOrder.id(), current.id(), current.status(), current.amount(), current.currency(),
-                current.merchantOrderId());
-        if (updated.statusChanged()) {
-            outboxWriter.enqueue(event.id(), event.name(), updated.order());
-        }
+        transactions.executeWithoutResult(transaction -> {
+            var updated = updateTransaction.applyVerifiedProviderStatus(
+                    paymentOrder.id(), current.id(), current.status(), current.amount(), current.currency(),
+                    current.merchantOrderId());
+            if (updated.statusChanged()) {
+                outboxWriter.enqueue(event.id(), event.name(), updated.order());
+                eventHub.publishOperationsChangeAfterCommit();
+            }
+        });
         markProcessed(eventId);
+    }
+
+    private void processRefundEvent(String providerRefundId) {
+        var current = refundGateway.retrieve(providerRefundId);
+        if (current == null || !providerRefundId.equals(current.id())) {
+            throw new IllegalStateException("Airwallex 查询退款编号与 Webhook 事件不一致");
+        }
+        var refund = refunds.findByProviderRefundId(providerRefundId)
+                .or(() -> current.requestId() == null ? Optional.empty()
+                        : refunds.findByProviderRequestId(current.requestId()))
+                .orElseThrow(() -> new IllegalStateException("Airwallex 退款尚未关联本地退款记录"));
+        refundStateService.applyProviderResult(refund.id(), current);
+    }
+
+    private boolean isSupportedRefundEvent(String eventName) {
+        return switch (eventName) {
+            case "refund.received", "refund.accepted", "refund.settled", "refund.failed" -> true;
+            default -> false;
+        };
     }
 
     private void markProcessed(String eventId) {

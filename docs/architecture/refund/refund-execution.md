@@ -27,7 +27,13 @@
 
 ## 提议通知
 
-独立事件类型 `refund.status_changed`。提议载荷含 `eventId`、`eventType`、`refundRequestId`、`refundId`、`paymentOrderId`、`businessOrderId`、`providerRefundId`、`businessOutcome`、`executionStatus`、`providerStatus`、`rawProviderStatus`、`amount`、`currency`、`occurredAt`；旧字段 `status` 保留为 `executionStatus` 的兼容别名。沿用当前星辙通知地址、出站密钥及通知队列；星辙以 `eventId` 去重。真实接收地址、验签和字段需星辙确认。Airwallex `RECEIVED` 表示退款请求已创建，`ACCEPTED` 表示付款方式提供方已接受退款，`SETTLED` 表示退款已纳入对账/结算报告，`FAILED` 表示服务商拒绝。星辙业务结果在 `ACCEPTED` 时即为 `SUCCEEDED`；支付项目继续定时查询，直到取得后续渠道状态。`SETTLED` 映射为本地兼容终态 `SUCCEEDED`，不再次触发星辙业务退款完成；旧版 API 的 `SUCCEEDED` 对外归一为 `providerStatus=SETTLED`，并通过 `rawProviderStatus` 留存原值。`NEEDS_REVIEW` 表示本地无法判断，不能视为失败后立即重发新指令。
+独立事件类型 `refund.status_changed`。载荷含 `eventId`、`eventType`、`refundRequestId`、`refundId`、`paymentOrderId`、`businessOrderId`、`providerRefundId`、`businessOutcome`、`executionStatus`、`providerStatus`、`rawProviderStatus`、`amount`、`currency`、`occurredAt`；旧字段 `status` 保留为 `executionStatus` 的兼容别名。沿用当前星辙通知地址、出站密钥及通知队列；模拟星辙按 `eventId` 去重。
+
+Airwallex 的退款 Webhook `refund.received`、`refund.accepted`、`refund.settled`、`refund.failed` 进入现有 Webhook 接收端，先验签并按事件编号去重，再异步按退款编号查询 Airwallex Refund。状态处理必须核对本地稳定 `request_id`、退款编号、Payment Intent、金额与币种；只有唯一匹配后才调用 `RefundStateService` 更新状态并写入星辙 outbox。暂时无法查询或关联的事件保留重试，不标记已完成。当前本地已暂停退款定时补查；状态推进依赖 Webhook，员工仍可从运营后台手动核实。退款状态事务提交后也会通知已登录运营页面通过 SSE 重新读取；该信号不替代退款状态或星辙服务器通知。
+
+Airwallex `RECEIVED` 表示退款请求已创建，`ACCEPTED` 表示付款方式提供方已接受退款，`SETTLED` 表示退款已纳入提供方对账文件并显示在 Airwallex 结算报告/钱包账目，`FAILED` 表示退款被拒绝。星辙业务结果在 `ACCEPTED` 时即为 `SUCCEEDED`；之后的 `SETTLED` 通知只更新渠道结算进度。它是同一退款的后续状态事件，拥有独立 `eventId`，消费方必须按 `refundRequestId` 幂等更新退款记录，并且只在业务结果首次转为 `SUCCEEDED` 时执行一次业务副作用，不能因 `SETTLED` 通知重复完成退款。模拟星辙仅记录事件并更新退款申请状态；真实星辙须按此规则确认并实现消费契约。`ACCEPTED` 和 `SETTLED` 都不能证明用户银行/支付账户已显示入账；实际入账时间由发卡行或支付渠道处理，Airwallex 无法观察。退款状态不自动决定星辙原业务订单是否关闭。
+
+`SETTLED` 映射为本地兼容终态 `SUCCEEDED`；旧版 API 的 `SUCCEEDED` 对外归一为 `providerStatus=SETTLED`，并通过 `rawProviderStatus` 留存原值。`NEEDS_REVIEW` 表示本地无法判断，不能视为失败后立即重发新指令。
 
 | Airwallex 状态 | `businessOutcome` | `executionStatus` / 兼容 `status` | `providerStatus` | `rawProviderStatus` |
 | --- | --- | --- | --- | --- |
@@ -47,7 +53,7 @@
 
 ## 核实与恢复
 
-定时任务查询未终结退款：已知服务商退款编号时按编号查询，未知编号时分页列出原 Payment Intent 的退款并匹配 `request_id`。`FAILED` 释放额度；`ACCEPTED` 和本地 `SUCCEEDED` 均继续占用额度，直到退款不再产生未结清责任。Airwallex 文档说明最多可查询创建后两年的退款，因此超过查询期限且尚未核实的记录需要人工对账处理，不得自动假设失败。每次状态变化和通知入队在同一数据库事务；投递失败由现有通知队列重试。业务退款在 `ACCEPTED` 时成功；后续 `SETTLED` 表示进入 Airwallex 对账/结算报告，不等于已经接入完整结算批次或确认银行到账，资金总览仍以正式结算报告为准。
+手动核实查询未终结退款：已知服务商退款编号时按编号查询，未知编号时分页列出原 Payment Intent 的退款并匹配 `request_id`。Webhook 到达后也会触发同一核验逻辑；当前环境不定时补查未决记录。`FAILED` 释放额度；`ACCEPTED` 和本地 `SUCCEEDED` 均继续占用额度，直到退款不再产生未结清责任。Airwallex 文档说明最多可查询创建后两年的退款，因此超过查询期限且尚未核实的记录需要人工对账处理，不得自动假设失败。每次状态变化和通知入队在同一数据库事务；投递失败由现有通知队列重试。业务退款在 `ACCEPTED` 时成功；后续 `SETTLED` 表示进入 Airwallex 对账/结算报告，不等于确认用户银行到账，资金总览仍以正式结算报告为准。
 
 定时任务只将 Airwallex 请求阶段的异常记录为服务商暂不可用；本地数据库读取、状态写入或通知入队失败应保留为应用错误并写入日志，不能伪装成 Airwallex 查询失败。
 
